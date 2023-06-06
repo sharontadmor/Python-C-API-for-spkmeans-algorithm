@@ -12,9 +12,7 @@ build using:
 python3 setup.py build_ext --inplace
 
 run using:
-python3 setup.py build_ext --inplace && python3 spkmeans.py spk tests/spk_1.txt
-python3 spkmeans.py 3 wam tests/input_smallest.txt
-python3 spkmeans.py 3 jacobi tests/jacobi_0.txt
+python3 setup.py build_ext --inplace && python3 spkmeans.py spk tests/test10.txt
 """
 
 
@@ -282,7 +280,6 @@ def operation(goal, data, k):
 
 
 def main():
-    w_12 = (10.976270078546495-15.834500761653292)**2+(14.30378732744839-10.577898395058089)**2+(12.055267521432878-11.360891221878646)**2+(10.897663659937937-18.51193276585322)**2+(8.473095986778095-1.4207211639577388)**2+(12.917882261333123-1.7425859940308142)**2+(8.75174422525385-0.4043679488065144)**2+(17.835460015641594-16.65239691095876)**2+(19.273255210020587-15.56313501899701)**2+(7.6688303765155545-17.400242964936382)**2
     args = sys.argv[1:]
     if len(args) == MAX_ARGS:
         k, goal, file_name = args

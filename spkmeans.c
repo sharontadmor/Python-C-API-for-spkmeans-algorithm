@@ -1,60 +1,86 @@
 #include "spkmeans.h"
 
 /* helper functions for K-means*/
-static Vector *mallocVector(double (*vectors)[d], int vecIdx);
-static void setData(Vector *vec, double *coords, Vector *next, Vector *prev);
-static void addNode(Vector **clusters, int clIdx, Vector *vec);
-static void removeNode(Vector **clusters, Vector **partition, int vecIdx);
-static void removeHeadVector(Vector **clusters, Vector *vec);
+void cleanup(vector **partition, vector **clusters);
+static vector *mallocVector(matrix *vectors, int vecIdx);
+static void setVectorData(vector *vec, double *coords, vector *next, vector *prev);
+static void setMatrixData(matrix *mat, double *arr, int rowsNum, int colsNul);
+static void addNode(vector **clusters, int clIdx, vector *vec);
+static void removeNode(vector **clusters, vector **partition, int vecIdx);
+static void removeHeadVector(vector **clusters, vector *vec);
 static int isBreakConditionKmeans(int count, int convergences);
-static double distance(double *vec1, double *vec2);
-static void assignVectorToCluster(Vector **clusters, int clIdx, Vector **partition, Vector *vec, int vecIdx);
-static int updateCenrtoids(double (*centroids)[d], Vector **clusters);
+double distance(matrix *vectors1, matrix *vectors2, int vecIdx1, int vecIdx2);
+static void assignVectorToCluster(vector **clusters, int clIdx, vector **partition, vector *vec, int vecIdx);
+int updateCenrtoids(matrix *centroids, vector **clusters);
 /* helper functions for Jacobi */
-static double getSumSquares(int n, double (*a)[n]);
-static int isBreakConditionJacobi(size_t count, double offA, double offVecs);
-static int getPivot(int n, double (*a)[n], size_t *idx);
-static int calculateP(int n, double (*a)[n], double (*p)[n], size_t i, size_t j);
-static double getT(int n, double (*a)[n], size_t i, size_t j);
+static double getSumSquares(matrix *a);
+static int isBreakConditionJacobi(int count, double offA, double offVecs);
+static int getPivot(matrix *a, int *idx);
+static int calculateP(matrix *a, matrix *p, int i, int j);
+static double getT(matrix *a, int i, int j);
 static double getC(double t);
 static double getS(double c, double t);
-static int rotate(int n, double (*a)[n], double (*b)[n], double (*p)[n], size_t i, size_t j);
-static int matrixMultiplication(int n, double (*a)[n], double (*b)[n], double (*prod)[n]);
+static int rotate(matrix *a, matrix *b, matrix *p, int i, int j);
+static int matrixMultiplication(matrix *a, matrix *b, matrix *prod);
 
-void printMatrix(int size, int dim, double (*a)[dim])
+void printMatrix(matrix *a)
 {
     int i, j;
-    for (i = 0; i < size; i++)
+    for (i = 0; i < a->rowsNum; i++)
     {
-        for (j = 0; j < dim; j++)
+        for (j = 0; j < a->colsNum; j++)
         {
-            printf("%.100f, ", a[i][j]);
+            printf("%.4f, ", getCellValue(a, i, j));
         }
         printf("\n");
     }
     printf("\n");
 }
 
-static Vector *mallocVector(double (*vectors)[d], int vecIdx)
+void cleanup(vector **partition, vector **clusters)
+/*
+loop over partition, free nodes of vectors.
+free partition.
+free clusters.
+*/
+{
+    int i;
+    if (partition != NULL)
+    {
+        for (i = 0; i < n; i++)
+        {
+            if (partition[i] != NULL)
+            {
+                free(partition[i]);
+            }
+        }
+        free(partition);
+    }
+    if (clusters != NULL)
+    {
+        free(clusters);
+    }
+}
+
+static vector *mallocVector(matrix *vectors, int vecIdx)
 /*
 returns a vector if vector creation is successful,
 or NULL otherwise.
 */
 {
     double *coords;
-    Vector *vec;
-    vec = (Vector *)malloc(sizeof(Vector));
+    vector *vec;
+    vec = (vector *)malloc(sizeof(vector));
     if (vec == NULL)
     {
         return NULL;
     }
-    coords = vectors[vecIdx];
-
-    setData(vec, coords, NULL, NULL);
+    coords = &vectors->array[vecIdx * vectors->colsNum];
+    setVectorData(vec, coords, NULL, NULL);
     return vec;
 }
 
-static void setData(Vector *vec, double *coords, Vector *next, Vector *prev)
+static void setVectorData(vector *vec, double *coords, vector *next, vector *prev)
 /*
 sets data of vector node.
 */
@@ -64,12 +90,56 @@ sets data of vector node.
     vec->prev = prev;
 }
 
-static void addNode(Vector **clusters, int clIdx, Vector *vec)
+matrix *mallocMatrix(int rowsNum, int colsNum)
+/*
+returns a matrix if matrix creation is successful,
+or NULL otherwise.
+*/
+{
+    matrix *mat;
+    double *arr;
+    mat = (matrix *)malloc(sizeof(matrix));
+    arr = (double *)malloc(sizeof(double) * rowsNum * colsNum);
+    if (mat == NULL || arr == NULL)
+    {
+        return NULL;
+    }
+    setMatrixData(mat, arr, rowsNum, colsNum);
+    return mat;
+}
+
+static void setMatrixData(matrix *mat, double *arr, int rowsNum, int colsNum)
+/*
+sets data of matrix.
+*/
+{
+    mat->rowsNum = rowsNum;
+    mat->colsNum = colsNum;
+    mat->array = arr;
+}
+
+double getCellValue(matrix *mat, int row, int col)
+/*
+returns value of cell in a 2 dimensional array.
+*/
+{
+    return mat->array[mat->colsNum * row + col];
+}
+
+void setCellValue(matrix *mat, int row, int col, double val)
+/*
+sets value of cell in a 2 dimensional array.
+*/
+{
+    mat->array[mat->colsNum * row + col] = val;
+}
+
+static void addNode(vector **clusters, int clIdx, vector *vec)
 /*
 adds a node of type Vector to linked list.
 */
 {
-    Vector *curr;
+    vector *curr;
     if (clusters[clIdx] == NULL)
     {
         clusters[clIdx] = vec;
@@ -86,12 +156,12 @@ adds a node of type Vector to linked list.
     }
 }
 
-static void removeNode(Vector **clusters, Vector **partition, int vecIdx)
+static void removeNode(vector **clusters, vector **partition, int vecIdx)
 /*
 removes a given node from linked list.
 */
 {
-    Vector *vec = partition[vecIdx];
+    vector *vec = partition[vecIdx];
     if (vec->prev == NULL) /* head vector */
     {
         removeHeadVector(clusters, vec);
@@ -108,7 +178,7 @@ removes a given node from linked list.
     vec->next = NULL;
 }
 
-static void removeHeadVector(Vector **clusters, Vector *vec)
+static void removeHeadVector(vector **clusters, vector *vec)
 /*
 removes a given node from linked list,
 pre: node is the head of linked list, vec->prev == NULL
@@ -145,24 +215,25 @@ static int isBreakConditionKmeans(int count, int convergences)
     return 0;
 }
 
-static double distance(double *vec1, double *vec2)
+double distance(matrix *vectors1, matrix *vectors2, int vecIdx1, int vecIdx2)
 /*
 calculates eclidean distance between vec1 and vec2.
+pre: len(vec1) == len(vec2).
 */
 {
     int i;
     double sum, val1, val2;
     sum = 0;
-    for (i = 0; i < d; i++)
+    for (i = 0; i < vectors1->colsNum; i++)
     {
-        val1 = vec1[i];
-        val2 = vec2[i];
+        val1 = getCellValue(vectors1, vecIdx1, i);
+        val2 = getCellValue(vectors2, vecIdx2, i);
         sum += (val1 - val2) * (val1 - val2);
     }
     return sqrt(sum);
 }
 
-static void assignVectorToCluster(Vector **clusters, int clIdx, Vector **partition, Vector *vec, int vecIdx)
+static void assignVectorToCluster(vector **clusters, int clIdx, vector **partition, vector *vec, int vecIdx)
 /*
 removes vector vec from current cluster,
 inserts vec to the cluster in index clIdx in clusters array.
@@ -180,37 +251,42 @@ inserts vec to the cluster in index clIdx in clusters array.
     }
 }
 
-static int updateCenrtoids(double (*centroids)[d], Vector **clusters)
+int updateCenrtoids(matrix *centroids, vector **clusters)
 /*
 iterates over all the clusters and calculates their new centroids.
 */
 {
     int i, j, size, convergences;
-    double oldCnt[d];
-    Vector *curr;
-    /* newCoord = 0; */
+    double newCoord;
+    matrix *oldCnt;
+    vector *curr;
+    newCoord = 0;
     convergences = 0;
-    for (i = 0; i < k; i++)
+    /* define a temp centroid */
+    oldCnt = mallocMatrix(1, centroids->colsNum);
+    if (oldCnt == NULL)
+    {
+        /* cleanup */
+        return -1;
+    }
+    for (i = 0; i < centroids->rowsNum; i++)
     {
         size = 0;
         /* save current centroid, then zero it */
-        for (j = 0; j < d; j++)
+        for (j = 0; j < centroids->colsNum; j++)
         {
-            oldCnt[j] = centroids[i][j];
-            centroids[i][j] = 0;
+            oldCnt->array[j] = getCellValue(centroids, i, j);
+            /* setCellValue(oldCnt, 0, j, getCellValue(centroids, i, j)); */
+            setCellValue(centroids, i, j, 0);
         }
         /* get sum vector of all the vectors in cluster */
         curr = clusters[i];
         while (curr != NULL)
         {
-            for (j = 0; j < d; j++)
+            for (j = 0; j < centroids->colsNum; j++)
             {
-                /*
-                newCoord = centroids[i][j] + curr->coords[j];
-                centroids[i][j] = newCoord;
-                */
-
-                centroids[i][j] += curr->coords[j];
+                newCoord = getCellValue(centroids, i, j) + curr->coords[j];
+                setCellValue(centroids, i, j, newCoord);
             }
             size++;
             curr = curr->next;
@@ -218,26 +294,23 @@ iterates over all the clusters and calculates their new centroids.
         /* devide sum vector by the size of cluster */
         if (size > 0)
         {
-            for (j = 0; j < d; j++)
+            for (j = 0; j < centroids->colsNum; j++)
             {
-                /*
-                newCoord = centroids[i][j] / size;
-                centroids[i][j] = newCoord
-                */
-
-                centroids[i][j] /= size;
+                newCoord = getCellValue(centroids, i, j) / size;
+                setCellValue(centroids, i, j, newCoord);
             }
         }
         /* for each cluster calculate dist between prev and curr centroids and count convergances */
-        if (distance(centroids[i], &oldCnt[0]) < KMEANS_EPS)
+        if (distance(centroids, oldCnt, i, 0) < KMEANS_EPS)
         {
             convergences++;
         }
     }
+    free(oldCnt->array);
     return convergences;
 }
 
-int kmeansC(int vectorsNum, int dim, int clustersNum, double (*vectors)[d], double (*centroids)[d])
+int kmeansC(int vectorsNum, int dim, int clustersNum, matrix *vectors, matrix *centroids)
 /*
 Implementation for K-means clustering algorithm.
 arguments:
@@ -255,15 +328,15 @@ return : 0 if run was successful, 1 otherwise.
 {
     int i, j, iterations, convergences, assignedCluster;
     double dist, minDist;
-    Vector **partition, **clusters, *vec;
+    vector **partition, **clusters, *vec;
 
     iterations = 0;
     convergences = 0;
     k = clustersNum;
     n = vectorsNum;
     d = dim;
-    partition = (Vector **)malloc(sizeof(Vector *) * n);
-    clusters = (Vector **)malloc(sizeof(Vector *) * k);
+    partition = (vector **)malloc(sizeof(vector *) * n);
+    clusters = (vector **)malloc(sizeof(vector *) * k);
     if (partition == NULL || clusters == NULL)
     {
         /* cleanup(partition, clusters); */
@@ -285,11 +358,11 @@ return : 0 if run was successful, 1 otherwise.
         for (i = 0; i < n; i++)
         {
             assignedCluster = 0;
-            minDist = distance(centroids[0], vectors[i]);
+            minDist = distance(centroids, vectors, 0, i);
             /* iterate over all the clusters */
             for (j = 0; j < k; j++)
             {
-                dist = distance(centroids[j], vectors[i]);
+                dist = distance(centroids, vectors, j, i);
                 if (dist < minDist)
                 {
                     minDist = dist;
@@ -317,7 +390,7 @@ return : 0 if run was successful, 1 otherwise.
     return 0;
 }
 
-int wamC(int n, int d, double (*vectors)[d], double (*w)[n])
+int wamC(int n, int d, matrix *vectors, matrix *w)
 /*
 n - number of vectors.
 d - dimention of each vector.
@@ -329,6 +402,13 @@ returns 0 if operation is successful.
 {
     int i, j, l;
     double euclid_dist, w_ij, diff;
+    /*
+    init w diagonal:
+    */
+    for (i = 0; i < n; i++)
+    {
+        setCellValue(w, i, i, 0);
+    }
     /*
     loop over all the vectors,
     for each vector v_i it's enough to calculate the weight w_ij with all the vectors v_j with index j larger then i,
@@ -343,7 +423,7 @@ returns 0 if operation is successful.
             w_ij = 0;
             for (l = 0; l < d; l++)
             {
-                diff = vectors[i][l] - vectors[j][l];
+                diff = getCellValue(vectors, i, l) - getCellValue(vectors, j, l);
                 euclid_dist += (diff * diff);
 #if 0
                 if (i == 0 && j == 2)
@@ -355,8 +435,8 @@ returns 0 if operation is successful.
 #endif
             }
             w_ij = exp((-1.0 / 2) * euclid_dist);
-            w[i][j] = w_ij;
-            w[j][i] = w_ij;
+            setCellValue(w, i, j, w_ij);
+            setCellValue(w, j, i, w_ij);
 #if 0
             if (i == 0 && j == 2)
             {
@@ -369,7 +449,7 @@ returns 0 if operation is successful.
     return 0;
 }
 
-int ddgC(int n, int d, double (*vectors)[d], double (*dg)[n])
+int ddgC(int n, int d, matrix *vectors, matrix *dg)
 /*
 n - number of vectors.
 d - dimention of each vector.
@@ -379,9 +459,10 @@ this function calculates dg, the diagonal degree matrix of the graph created fro
 returns 0 if operation is successful.
 */
 {
-    size_t i, j;
-    double(*w)[n], degree;
-    w = (double(*)[n])malloc(sizeof(double) * n * n); /* weighed adjacency matrix */
+    int i, j;
+    double degree;
+    matrix *w;
+    w = mallocMatrix(n, n); /* weighed adjacency matrix */
     if (w == NULL)
     {
         /* cleanup */
@@ -393,14 +474,14 @@ returns 0 if operation is successful.
         degree = 0;
         for (j = 0; j < n; j++)
         {
-            degree += w[i][j];
+            degree += getCellValue(w, i, j);
         }
-        dg[i][i] = degree;
+        setCellValue(dg, i, i, degree);
     }
     return 0;
 }
 
-int glC(int n, int d, double (*vectors)[d], double (*l)[n])
+int glC(int n, int d, matrix *vectors, matrix *l)
 /*
 n - number of vectors.
 d - dimention of each vector.
@@ -410,10 +491,11 @@ this function calculates l, the graph laplacian matrix of the graph created from
 returns 0 if operation is successful.
 */
 {
-    size_t i, j;
-    double(*w)[n], (*dg)[n];
-    w = (double(*)[n])malloc(sizeof(double) * n * n);  /* weighed adjacency matrix */
-    dg = (double(*)[n])malloc(sizeof(double) * n * n); /* diagonal degree matrix */
+    int i, j;
+    double diff;
+    matrix *w, *dg;
+    w = mallocMatrix(n, n); /* weighed adjacency matrix */
+    dg = mallocMatrix(n, n); /* diagonal degree matrix */
     if (w == NULL || dg == NULL)
     {
         /* cleanup */
@@ -423,14 +505,14 @@ returns 0 if operation is successful.
     {
         for (j = 0; j < n; j++)
         {
-            w[i][j] = 0;
+            setCellValue(w, i, j, 0);
             if (i == j)
             {
-                dg[i][j] = 1;
+                setCellValue(dg, i, j, 1);
             }
             else
             {
-                dg[i][j] = 0;
+                setCellValue(dg, i, j, 0);
             }
         }
     }
@@ -440,49 +522,48 @@ returns 0 if operation is successful.
     {
         for (j = 0; j < n; j++)
         {
-            l[i][j] = dg[i][j] - w[i][j];
+            diff = getCellValue(dg, i, j) - getCellValue(w, i, j);
+            setCellValue(l, i, j, diff);
         }
     }
     return 0;
 }
 
-int jacobiC(int n, double (*a)[n], double (*eigenvalues)[n], double (*eigenvectors)[n])
+int jacobiC(int n, matrix *a, matrix *eigenvals, matrix *eigenvecs)
 /*
 the Jacobi eigenvalue algorithm is an iterative method
 for the calculation of eigenvalues and eigenvectors of a real symmetric matrix.
 n - size of matrix a.
 a - array representing a symmetric matrix of dim n*n,
 for which to calculate eigenvalues and eigenvectors.
-eigenvalues -
-eigenvectors -
-calculates:
-(1) diag - diagonalized matrix where the diagonal values are a's eigenvalues.
-(2) vecs - matrix in which the columns are a's eigenvectors.
+eigenvals - array representing a matrix of dim n*n,
+in which the diagonal values are a's eigenvalues.
+eigenvecs - array representing a matrix of dim n*n,
+in which the columns are a's eigenvectors.
 returns 0 if operation is successful.
 */
 {
-    size_t i, j, count, idx[2], res;
+    int i, j, count, idx[2], res;
     /* int count; */
     double offA, offVecs;
-    double(*p)[n], (*temp)[n], (*prod)[n];
+    matrix *p, *temp, *prod;
     idx[0] = 0;
     idx[1] = 0;
     offA = 0;
     offVecs = 0;
     count = 0;
-    p = (double(*)[n])malloc(sizeof(double) * n * n);
+    p = mallocMatrix(n, n);
     if (p == NULL)
     {
         /* cleanup */
         return ERROR_OUT_OF_MEMORY;
     }
-    offA = getSumSquares(n, a);
+    offA = getSumSquares(a);
 
     /*
     printf("a:\n");
     printMatrix(n, n, a);
     */
-
     while (!isBreakConditionJacobi(count, offA, offVecs))
     {
         count += 1;
@@ -502,7 +583,7 @@ returns 0 if operation is successful.
         printMatrix(n, n, eigenvectors);
         */
 
-        res = getPivot(n, eigenvalues, idx);
+        res = getPivot(eigenvals, idx);
         if (res == MATRIX_IS_DIAGONAL)
         {
             if (count == 1)
@@ -511,13 +592,13 @@ returns 0 if operation is successful.
                 {
                     for (j = 0; j < n; j++)
                     {
-                        eigenvectors[i][j] = p[i][j];
+                        setCellValue(eigenvecs, i, j, getCellValue(p, i, j));
                     }
                 }
             }
             else
             {
-                prod = (double(*)[n])malloc(sizeof(double) * n * n);
+                prod = mallocMatrix(n, n);
                 if (prod == NULL)
                 {
                     /* cleanup */
@@ -527,16 +608,16 @@ returns 0 if operation is successful.
                 {
                     for (j = 0; j < n; j++)
                     {
-                        prod[i][j] = 0;
+                        setCellValue(prod, i, j, 0);
                     }
                 }
-                matrixMultiplication(n, eigenvectors, p, prod);
-                free(eigenvectors);
-                eigenvectors = prod;
+                matrixMultiplication(eigenvecs, p, prod);
+                free(eigenvecs);
+                eigenvecs = prod;
             }
             return 0;
         }
-        temp = (double(*)[n])malloc(sizeof(double) * n * n);
+        temp = mallocMatrix(n, n);
         if (temp == NULL)
         {
             /* cleanup */
@@ -546,14 +627,14 @@ returns 0 if operation is successful.
         {
             for (j = 0; j < n; j++)
             {
-                temp[i][j] = eigenvalues[i][j];
+                setCellValue(temp, i, j, getCellValue(eigenvals, i, j));
                 if (i == j)
                 {
-                    p[i][j] = 1;
+                    setCellValue(p, i, j, 1);
                 }
                 else
                 {
-                    p[i][j] = 0;
+                    setCellValue(p, i, j, 0);
                 }
             }
         }
@@ -565,10 +646,10 @@ returns 0 if operation is successful.
         printMatrix(n, n, eigenvalues);
         */
 
-        calculateP(n, eigenvalues, p, idx[0], idx[1]);
-        rotate(n, eigenvalues, temp, p, idx[0], idx[1]);
-        free(eigenvalues);
-        eigenvalues = temp;
+        calculateP(eigenvals, p, idx[0], idx[1]);
+        rotate(eigenvals, temp, p, idx[0], idx[1]);
+        free(eigenvals);
+        eigenvals = temp;
 
         /*
         printf("p 3 - after calculations:\n");
@@ -584,13 +665,13 @@ returns 0 if operation is successful.
             {
                 for (j = 0; j < n; j++)
                 {
-                    eigenvectors[i][j] = p[i][j];
+                    setCellValue(eigenvecs, i, j, getCellValue(p, i, j));
                 }
             }
         }
         else
         {
-            prod = (double(*)[n])malloc(sizeof(double) * n * n);
+            prod = mallocMatrix(n, n);
             if (prod == NULL)
             {
                 /* cleanup */
@@ -600,14 +681,14 @@ returns 0 if operation is successful.
             {
                 for (j = 0; j < n; j++)
                 {
-                    prod[i][j] = 0;
+                    setCellValue(prod, i, j, 0);
                 }
             }
-            matrixMultiplication(n, eigenvectors, p, prod);
-            free(eigenvectors);
-            eigenvectors = prod;
+            matrixMultiplication(eigenvecs, p, prod);
+            free(eigenvecs);
+            eigenvecs = prod;
         }
-        offVecs = getSumSquares(n, eigenvalues);
+        offVecs = getSumSquares(eigenvals);
         /*
         printf("p 4 - end of iter:\n");
         printMatrix(n, n, p);
@@ -624,42 +705,32 @@ returns 0 if operation is successful.
     printf("final eigenvalues:\n");
     printMatrix(n, n, eigenvalues);
     */
-    for (i = 0; i < n; i++)
-    {
-        for (j = 0; j < n; j++)
-        {
-            if (eigenvectors[i][j] != 0)
-            {
-                printf("non zero coord\n");
-            }
-            
-        }
-    }
-    printf("end of loop.\n");
+
     return 0;
 }
 
-static double getSumSquares(int n, double (*a)[n])
+static double getSumSquares(matrix *a)
 /*
 n - size of matrix a.
 a - array representing symmetric matrix of dim n*n.
 returns the sum of squares of all off-diagonal elements of matrix a.
 */
 {
-    size_t i, j;
+    int i, j, n;
     double sum;
+    n = a->rowsNum;
     sum = 0;
     for (i = 0; i < n - 1; i++)
     {
         for (j = i + 1; j < n; j++)
         {
-            sum += a[i][j] * a[i][j];
+            sum += getCellValue(a, i, j) * getCellValue(a, i, j);
         }
     }
     return 2.0 * sum;
 }
 
-static int isBreakConditionJacobi(size_t count, double offA, double offVecs)
+static int isBreakConditionJacobi(int count, double offA, double offVecs)
 {
     int convergence;
     convergence = offA - offVecs <= EPS;
@@ -676,7 +747,7 @@ static int isBreakConditionJacobi(size_t count, double offA, double offVecs)
     return 0;
 }
 
-static int getPivot(int n, double (*a)[n], size_t *idx)
+static int getPivot(matrix *a, int *idx)
 /*
 n - size of matrix a.
 a - array representing symmetric matrix of dim n*n.
@@ -686,17 +757,18 @@ and puts its row and column in array idx, such that the 0 index is the row i of 
 pivot is the off-diagonal element of matrix a with the largest absolute value.
 */
 {
-    size_t i, j;
+    int i, j, n;
     double pivot;
+    n = a->rowsNum;
     pivot = 0;
     /* printMatrix(n, n, a); */
     for (i = 0; i < n - 1; i++)
     {
         for (j = i + 1; j < n; j++)
         {
-            if (fabs(a[i][j]) > pivot)
+            if (fabs(getCellValue(a, i, j)) > pivot)
             {
-                pivot = fabs(a[i][j]);
+                pivot = fabs(getCellValue(a, i, j));
                 idx[0] = i;
                 idx[1] = j;
 
@@ -714,19 +786,19 @@ pivot is the off-diagonal element of matrix a with the largest absolute value.
     return 0;
 }
 
-static int calculateP(int n, double (*a)[n], double (*p)[n], size_t i, size_t j)
+static int calculateP(matrix *a, matrix *p, int i, int j)
 /*
 calculates rotation matrix p.
 */
 {
     double t, c, s;
-    t = getT(n, a, i, j);
+    t = getT(a, i, j);
     c = getC(t);
     s = getS(c, t);
-    p[i][i] = c;
-    p[j][j] = c;
-    p[i][j] = s;
-    p[j][i] = (-1) * s;
+    setCellValue(p, i, i, c);
+    setCellValue(p, j, j, c);
+    setCellValue(p, i, j, s);
+    setCellValue(p, j, i, (-1) * s);
 
     /*
     printf("---> t: %f\n", t);
@@ -737,14 +809,15 @@ calculates rotation matrix p.
     return 0;
 }
 
-static double getT(int n, double (*a)[n], size_t i, size_t j)
+static double getT(matrix *a, int i, int j)
 /*
 calculates value t out of matrix a.
 */
 {
     double theta, denominator, t;
     theta = 0;
-    theta = (a[j][j] - a[i][i]) / (2 * a[i][j]);
+    theta = (getCellValue(a, j, j) - getCellValue(a, i, i)) / (2 * getCellValue(a, i, j));
+    /* theta = (a[j][j] - a[i][i]) / (2 * a[i][j]); */
     /*
     printf("i: %d, j: %d\n", i, j);
     printf("a:\n");
@@ -783,18 +856,39 @@ calculates value s out of matrix a.
     return s;
 }
 
-static int rotate(int n, double (*a)[n], double (*b)[n], double (*p)[n], size_t i, size_t j)
+static int rotate(matrix *a, matrix *b, matrix *p, int i, int j)
 /*
 rotates matrix b to make b_ij = 0.
 */
 {
-    size_t r;
-    double c, s;
+    int r, n;
+    double c, s, val;
+    n = a->rowsNum;
+    c = getCellValue(p, i, i);
+    s = getCellValue(p, i, j);
+    val = (c * c * getCellValue(a, i, i)) + (s * s * getCellValue(a, j, j)) - (2 * s * c * getCellValue(a, i, j));
+    setCellValue(b, i, i, val);
+    val = (s * s * getCellValue(a, i, i)) + (c * c * getCellValue(a, j, j)) + (2 * s * c * getCellValue(a, i, j));
+    setCellValue(b, i, j, 0); /* b[i][j] = (c * c - s * s) * a[i][j] + (s * c)(a[i][i] - a[j][j]) = 0 */
+    setCellValue(b, j, i, 0);
+    for (r = 0; r < n; r++)
+    {
+        if ((r != i) && (r != j))
+        {
+            val = c * getCellValue(a, r, i) - s * getCellValue(a, r, j);
+            setCellValue(b, r, i, val);
+            setCellValue(b, i, r, val);
+            val = c * getCellValue(a, r, j) + s * getCellValue(a, r, i);
+            setCellValue(b, r, j, val);
+            setCellValue(b, j, r, val);
+        }
+    }
+    /*
     c = p[i][i];
     s = p[i][j];
     b[i][i] = (c * c * a[i][i]) + (s * s * a[j][j]) - (2 * s * c * a[i][j]);
     b[j][j] = (s * s * a[i][i]) + (c * c * a[j][j]) + (2 * s * c * a[i][j]);
-    b[i][j] = 0; /* b[i][j] = (c * c - s * s) * a[i][j] + (s * c)(a[i][i] - a[j][j]) = 0 */
+    b[i][j] = 0;
     b[j][i] = 0;
     for (r = 0; r < n; r++)
     {
@@ -806,25 +900,29 @@ rotates matrix b to make b_ij = 0.
             b[j][r] = c * a[r][j] + s * a[r][i];
         }
     }
+    */
 
     return 0;
 }
 
-static int matrixMultiplication(int n, double (*a)[n], double (*b)[n], double (*prod)[n])
+static int matrixMultiplication(matrix *a, matrix *b, matrix *prod)
 /*
 calculates matrix multiplication between a and b, square matrices of size n.
 stores product into matrix prod of size n.
 */
 {
-    size_t i, j, k;
+    int i, j, k, n;
+    double res;
+    n = a->rowsNum;
     for (i = 0; i < n; i++)
     {
         for (j = 0; j < n; j++)
         {
-            prod[i][j] = 0;
+            setCellValue(prod, i, j, 0);
             for (k = 0; k < n; k++)
             {
-                prod[i][j] += a[i][k] * b[k][j];
+                res = getCellValue(prod, i, j) + getCellValue(a, i, k) * getCellValue(b, k, j);
+                setCellValue(prod, i, j, res);
             }
         }
     }

@@ -1,19 +1,5 @@
 #include "spkmeans.h"
 
-/*
-compile using:
-gcc -ansi -Wall -Wextra -Werror -pedantic-errors spkmeans_main.c -o spkmeans_main -lm
-run using:
-make && ./spkmeans wam tests/test_batch/test1.txt
-make && ./spkmeans jacobi tests/test_batch/test1_j.txt
-
-test with asan:
-make spkmeans_asan && ./spkmeans_asan jacobi tests/test_batch/test1_j.txt
-
-test for case -0:
-make && ./spkmeans jacobi tests/test_batch/test0_j.txt
-*/
-
 static matrix *parseData(char *fileName);
 static int operation(char *goal, matrix *data);
 static int wam(matrix *data);

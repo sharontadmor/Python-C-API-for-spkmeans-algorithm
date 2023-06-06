@@ -15,7 +15,12 @@ static PyObject *spk(PyObject *self, PyObject *args)
     int n, k, d, i, j, res;
     double coord;
     matrix *vectors, *centroids;
-    if (!PyArg_ParseTuple(args, "OOi", &pyVectors, &pyCentroids, &k))
+    if (!PyArg_ParseTuple(args, "OO", &pyVectors, &pyCentroids))
+    {
+        return Py_BuildValue("i", EXIT_FAILURE);
+    }
+    k = PyObject_Length(pyCentroids);
+    if (k <= 0)
     {
         return Py_BuildValue("i", EXIT_FAILURE);
     }
@@ -293,7 +298,7 @@ static PyObject *jacobi(PyObject *self, PyObject *args)
         matrixCleanup(mat);
         matrixCleanup(eigenvals);
         matrixCleanup(eigenvecs);
-        return Py_BuildValue("ii", EXIT_FAILURE, EXIT_FAILURE); // ERROR_INVALID_ARGUMENT
+        return Py_BuildValue("ii", EXIT_FAILURE, EXIT_FAILURE);
     }
     res = jacobiC(n, mat, eigenvals, eigenvecs);
     if (res == EXIT_FAILURE)
@@ -315,19 +320,6 @@ static PyObject *buildMatrix(matrix *mat)
 {
     int i, j;
     PyObject *pyLst, *item, *num;
-#if 0
-    pyLst = PyList_New(k);
-    for (i = 0; i < k; ++i)
-    {
-        item = PyList_New(d);
-        for (j = 0; j < d; j++)
-        {
-            num = Py_BuildValue("d", arr[i * d + j]);
-            PyList_SetItem(item, j, num);
-        }
-        PyList_SetItem(pyLst, i, item);
-    }
-#endif
     pyLst = PyList_New(mat->rowsNum);
     for (i = 0; i < mat->rowsNum; ++i)
     {

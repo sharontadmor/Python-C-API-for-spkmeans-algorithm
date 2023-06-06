@@ -3,19 +3,6 @@ import os
 import numpy as np
 import math
 import mykmeanssp as km
-# import mykmeanssp_python as km
-
-
-"""
-build using:
-python3 setup.py build_ext --inplace
-
-run using:
-python3 setup.py build_ext --inplace && python3 spkmeans.py spk tests/test_batch/test1.txt
-
-test for case -0:
-python3 setup.py build_ext --inplace && python3 spkmeans.py jacobi tests/test_batch/test0_j.txt
-"""
 
 
 np.random.seed(0)
@@ -64,50 +51,19 @@ def first_k_eigenvectors(data, k):
     # get eigenvalues and eigenvectors of the graph laplacian matrix.
     # the eigenvectors are the columns of matrix eigenvectors,
     # the eigenvalues are on the diagonal of matrix eigenvalues.
-    data = [data[i].tolist() for i in range(len(data))]
-
-    # print("gl:\n", km.gl(data))
-    
+    data = [data[i].tolist() for i in range(len(data))]    
     eigenvalues, eigenvectors = np.array(km.jacobi(km.gl(data)))
-    # eigenvalues = np.array([[4, 0, 0, 0], [0, 2, 0, 0], [0, 0, 1, 0], [0, 0, 0, 3]])
-    # eigenvectors = np.array([[4, 2, 1, 'a'], [4, 2, 1, 'b'], [4, 2, 1, 'c'], [4, 2, 1, 'd']])
-    # print("1:")
-    # print("eigenvalues:\n", eigenvalues)
-    # print()
-    # print("eigenvectors:\n", eigenvectors)
-    # print_jacobi(eigenvalues, eigenvectors)
-
     eigenvalues = np.diag(eigenvalues)
     eigenvectors = np.array(eigenvectors).T
-
-    # print("2:")
-    # print(eigenvalues)
-    # print()
-    # print(eigenvectors)
-
     # sort eigenvalues in ascending order, while rearranging corresponding eigenvectors,
     idx = np.argsort(eigenvalues)  # get the sorted indices
-
-    # print("idx:")
-    # print(idx)
-
     eigenvalues = eigenvalues[idx]
     eigenvectors = eigenvectors[idx]
-
-    # print("3:")
-    # print(eigenvalues)
-    # print()
-    # print(eigenvectors)
-
     # get k:
     if k == DEFAULT_K:
         k = eigengap_heuristic(eigenvalues)
     # create a matrix which columns are the first k eigenvectors:
     u = np.array(eigenvectors[:k]).T
-
-    # print("u:")
-    # print(u)
-
     return u, k
 
 
@@ -139,7 +95,6 @@ def random_vec(vectors, centroids, initial_idx, i, pr):
     if not (pr is None):
         rnd_idx = np.random.choice(vectors.shape[0], p=pr)
     else:
-        # np.random.seed(0)
         rnd_idx = np.random.choice(vectors.shape[0])
     centroids[i] = vectors[rnd_idx]
     initial_idx[i] = rnd_idx
@@ -173,7 +128,7 @@ def spk(data, k):
     initial_centroids = [initial_centroids[i].tolist()
                          for i in range(len(initial_centroids))]
     
-    final_centroids = km.spk(u, initial_centroids, k)
+    final_centroids = km.spk(u, initial_centroids)
     if final_centroids == GENERAL_ERROR:
         return GENERAL_ERROR
     print_centroids(final_centroids, initial_idx, k)

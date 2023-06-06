@@ -1,3 +1,4 @@
+/* #include <float.h> */
 #include "spkmeans.h"
 
 /* helper functions for K-means*/
@@ -75,20 +76,6 @@ pre: node is the head of linked list, vec->prev == NULL
 */
 {
     int i;
-#if 0
-    /* if cluster size is 1 */
-    if (vec->prev == NULL && vec->next == NULL)
-    {
-        for (i = 0; i < clustersNum; i++)
-        {
-            if (clusters[i] == vec)
-            {
-                clusters[i] = NULL;
-                return;
-            }
-        }
-    }
-#endif
     for (i = 0; i < clustersNum; i++)
     {
         if (clusters[i] == vec)
@@ -168,7 +155,6 @@ return : convergences - number of centroids whose new centroid has a distance of
         for (j = 0; j < centroids->colsNum; j++)
         {
             oldCnt->array[j] = getCellValue(centroids, i, j);
-            /* setCellValue(oldCnt, 0, j, getCellValue(centroids, i, j)); */
             setCellValue(centroids, i, j, 0);
         }
         /* get sum vector of all the vectors in cluster */
@@ -297,9 +283,7 @@ return : 0 if operation is successful.
 {
     int i, j, l;
     double euclid_dist, w_ij, diff;
-    /*
-    init w diagonal:
-    */
+    /* init w diagonal */
     for (i = 0; i < n; i++)
     {
         setCellValue(w, i, i, 0);
@@ -320,25 +304,10 @@ return : 0 if operation is successful.
             {
                 diff = getCellValue(vectors, i, l) - getCellValue(vectors, j, l);
                 euclid_dist += (diff * diff);
-#if 0
-                if (i == 0 && j == 2)
-                {
-                    printf("coord 1: %f\n", vectors[i][l]);
-                    printf("coord 2: %f\n", vectors[j][l]);
-                    printf("diff: %f\n", diff);
-                }
-#endif
             }
             w_ij = exp((-1.0 / 2) * euclid_dist);
             setCellValue(w, i, j, w_ij);
             setCellValue(w, j, i, w_ij);
-#if 0
-            if (i == 0 && j == 2)
-            {
-                printf("---> euclid_dist: %f\n", euclid_dist);
-                printf("---> w_ij: %f\n", w_ij);
-            }
-#endif
         }
     }
     return EXIT_SUCCESS;
@@ -475,106 +444,6 @@ return : 0 if run was successful, 1 otherwise.
     {
         return EXIT_FAILURE;
     }
-
-#if 0
-    /* fix -0 */
-    printf("eigenvals:\n");
-    for (i = 0; i < eigenvals->rowsNum; i++)
-    {
-        for (j = 0; j < eigenvals->colsNum - 1; j++)
-        {
-            printf("%f,", getCellValue(eigenvals, i, j));
-        }
-        printf("%f\n", getCellValue(eigenvals, i, j));
-    }
-    printf("checking for -0:\n");
-    for (i = 0; i < eigenvals->rowsNum; i++)
-    {
-        if (getCellValue(eigenvals, i, i) == 0 && __signbit(getCellValue(eigenvals, i, i)))
-        {
-            printf("index %d has value of %f.\n", i, getCellValue(eigenvals, i, i));
-        }
-    }
-    printf("\n");
-#endif
-#if 0
-    while (!isBreakConditionJacobi(count, offA, offVecs))
-    {
-        count += 1;
-        res = getPivot(eigenvals, idx);
-        if (res == MATRIX_IS_DIAGONAL)
-        {
-            if (count > 1)
-            {
-                prod = mallocMatrix(n, n);
-                if (prod == NULL)
-                {
-                    matrixCleanup(p);
-                    return EXIT_FAILURE;
-                }
-                for (i = 0; i < n; i++)
-                {
-                    for (j = 0; j < n; j++)
-                    {
-                        setCellValue(prod, i, j, 0);
-                    }
-                }
-                matrixMultiplication(eigenvecs, p, prod);
-                free(eigenvecs->array);
-                eigenvecs->array = prod->array;
-            }
-            matrixCleanup(p);
-            return EXIT_SUCCESS;
-        }
-        temp = mallocMatrix(n, n);
-        if (temp == NULL)
-        {
-            matrixCleanup(p);
-            return EXIT_FAILURE;
-        }
-        for (i = 0; i < n; i++)
-        {
-            for (j = 0; j < n; j++)
-            {
-                setCellValue(temp, i, j, getCellValue(eigenvals, i, j));
-                if (i == j)
-                {
-                    setCellValue(p, i, j, 1);
-                }
-                else
-                {
-                    setCellValue(p, i, j, 0);
-                }
-            }
-        }
-        calculateP(eigenvals, p, idx[0], idx[1]);
-        rotate(eigenvals, temp, p, idx[0], idx[1]);
-        free(eigenvals->array);
-        eigenvals->array = temp->array;
-
-        prod = mallocMatrix(n, n);
-        if (prod == NULL)
-        {
-            matrixCleanup(p);
-            return EXIT_FAILURE;
-        }
-        for (i = 0; i < n; i++)
-        {
-            for (j = 0; j < n; j++)
-            {
-                setCellValue(prod, i, j, 0);
-            }
-        }
-        matrixMultiplication(eigenvecs, p, prod);
-        free(eigenvecs->array);
-        eigenvecs->array = prod->array;
-
-        offVecs = getSumSquares(eigenvals);
-    }
-    matrixCleanup(p);
-    return EXIT_SUCCESS;
-#endif
-
     while (!isBreakConditionJacobi(count, isDiagonal))
     {
         count += 1;
@@ -601,39 +470,7 @@ return : 0 if run was successful, 1 otherwise.
             isDiagonal = 1;
         }
         prevOff = currOff;
-
-        /*
-        printf("iteration: %d\n", count);
-        printf("pivot: %d, %d\n", pivotIndxes[0], pivotIndxes[1]);
-        printf("t: %f\n", t);
-        printf("c: %f\n", c);
-        printf("s: %f\n", s);
-        printf("p:\n");
-        printMatrix(p);
-        printf("v:\n");
-        printMatrix(eigenvecs);
-        printf("eigenvals:\n");
-        printMatrix(eigenvals);
-
-        printf("a:\n");
-        printMatrix(a);
-        */
     }
-
-#if 0
-    /* add the following loop to test case of -0 */
-    for (i = 0; i < eigenvals->rowsNum; i++)
-    {
-        for (j = 0; j < eigenvals->colsNum - 1; j++)
-        {
-            setCellValue(eigenvals, i, j, getCellValue(a, i, j));
-        }
-    }
-    printf("eigenvals:\n");
-    printMatrix(eigenvals);
-    printf("\n");
-#endif
-
     correctMinusZero(eigenvecs, eigenvals);
     matrixCleanup(p);
     return EXIT_SUCCESS;
@@ -681,7 +518,6 @@ pivot is the off-diagonal element of matrix a with the largest absolute value.
     double pivot;
     n = a->rowsNum;
     pivot = 0;
-    /* printMatrix(n, n, a); */
     for (i = 0; i < n - 1; i++)
     {
         for (j = i + 1; j < n; j++)
@@ -691,41 +527,11 @@ pivot is the off-diagonal element of matrix a with the largest absolute value.
                 pivot = fabs(getCellValue(a, i, j));
                 idx[0] = i;
                 idx[1] = j;
-
-#if 0
-                printf("---> i: %d, j: %d\n", i, j);
-                printf("---> pivot: %f\n", pivot);
-#endif
             }
         }
     }
     return EXIT_SUCCESS;
 }
-
-#if 0
-static int calculateP(matrix *a, matrix *p, int i, int j)
-/*
-calculates rotation matrix p.
-*/
-{
-    double t, c, s;
-    t = getT(a, i, j);
-    c = getC(t);
-    s = getS(c, t);
-    setCellValue(p, i, i, c);
-    setCellValue(p, j, j, c);
-    setCellValue(p, i, j, s);
-    setCellValue(p, j, i, (-1) * s);
-
-    /*
-    printf("---> t: %f\n", t);
-    printf("---> c: %f\n", c);
-    printf("---> s: %f\n", s);
-    */
-
-    return 0;
-}
-#endif
 
 static void buildRotationMatrix(matrix *p, double s, double c, int idx1, int idx2)
 /*
@@ -763,13 +569,6 @@ calculates value t out of matrix a.
     double theta, denominator, t;
     theta = 0;
     theta = (getCellValue(a, j, j) - getCellValue(a, i, i)) / (2 * getCellValue(a, i, j));
-    /* theta = (a[j][j] - a[i][i]) / (2 * a[i][j]); */
-    /*
-    printf("i: %d, j: %d\n", i, j);
-    printf("a:\n");
-    printMatrix(n, n, a);
-    printf("---> theta: %f\n", theta);
-    */
     denominator = fabs(theta) + sqrt(theta * theta + 1);
     if (theta >= 0)
     {
@@ -862,7 +661,7 @@ updates matrix eigenvals.
     int i, j, n;
     matrix *temp;
     n = eigenvals->rowsNum;
-    /* initiate a copy of eigenvals: */
+    /* init a copy of eigenvals */
     temp = mallocMatrix(n, n);
     if (temp == NULL)
     {
@@ -875,7 +674,7 @@ updates matrix eigenvals.
             setCellValue(temp, i, j, getCellValue(eigenvals, i, j));
         }
     }
-    /* update eigenvals: */
+    /* update eigenvals */
     rotate(eigenvals, temp, s, c, idx1, idx2);
     free(eigenvals->array);
     eigenvals->array = temp->array;
@@ -909,25 +708,6 @@ rotates matrix b to make b_ij = 0.
             setCellValue(b, j, r, val);
         }
     }
-    /*
-    c = p[i][i];
-    s = p[i][j];
-    b[i][i] = (c * c * a[i][i]) + (s * s * a[j][j]) - (2 * s * c * a[i][j]);
-    b[j][j] = (s * s * a[i][i]) + (c * c * a[j][j]) + (2 * s * c * a[i][j]);
-    b[i][j] = 0;
-    b[j][i] = 0;
-    for (r = 0; r < n; r++)
-    {
-        if ((r != i) && (r != j))
-        {
-            b[r][i] = c * a[r][i] - s * a[r][j];
-            b[r][j] = c * a[r][j] + s * a[r][i];
-            b[i][r] = c * a[r][i] - s * a[r][j];
-            b[j][r] = c * a[r][j] + s * a[r][i];
-        }
-    }
-    */
-
     return EXIT_SUCCESS;
 }
 
@@ -939,30 +719,16 @@ this function will correct its corresponding eigenvector by multiplying the corr
 */
 {
     int i, j;
-
-    #if 0
-    printf("eigenvecs before:\n");
-    printMatrix(eigenvecs);
-    printf("\n");
-    #endif
-
     for (i = 0; i < eigenvals->rowsNum; i++)
     {
-        if (getCellValue(eigenvals, i, i) == 0 && __signbit(getCellValue(eigenvals, i, i)))
+        if (getCellValue(eigenvals, i, i) == 0 && (1 / (getCellValue(eigenvals, i, i))) != (1 / 0.0))
+        /* || getCellValue(eigenvals, i, i) == -DBL_EPSILON */
         {
-            /* printf("index %d has value of %f.\n", i, getCellValue(eigenvals, i, i)); */
             for (j = 0; j < eigenvals->rowsNum; j++)
             {
                 setCellValue(eigenvecs, j, i, (-1) * getCellValue(eigenvecs, j, i));
             }
         }
     }
-
-    #if 0
-    printf("eigenvecs after:\n");
-    printMatrix(eigenvecs);
-    printf("\n");
-    #endif
-
     return EXIT_SUCCESS;
 }

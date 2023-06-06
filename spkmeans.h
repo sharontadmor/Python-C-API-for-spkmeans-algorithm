@@ -1,6 +1,13 @@
-#ifndef KMEANS_H_
-#define KMEANS_H_
+#ifndef __SPKMEANS_H__
+#define __SPKMEANS_H__
 #define ERROR_OUT_OF_MEMORY 1
+#define EPS 1.0 * pow(10, -5)
+#define MAX_ROTATIONS 100
+#define MATRIX_IS_DIAGONAL -1
+#include <Python.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <math.h>
 /*
 int k;
 int iter;
@@ -16,15 +23,11 @@ typedef struct vector
     struct vector *prev;
 } Vector;
 
-double getCellValue(double *arr, int rowLen, int row, int col);
-void setCellValue(double *arr, int rowLen, int row, int col, double val);
 int wamC(int n, int d, double (*vectors)[d], double (*w)[n]);
 int ddgC(int n, int d, double (*vectors)[d], double (*dg)[n]);
 int glC(int n, int d, double (*vectors)[d], double (*l)[n]);
-int jacobiC(int n, int d, double (*a)[d], double (*j)[n]);
+int jacobiC(int n, double (*a)[n], double (*eigenvalues)[n], double (*eigenvectors)[n]);
 
-static PyObject *wam(PyObject *self, PyObject *args);
-static PyObject *getList(double *arr, int k, int d);
 PyMODINIT_FUNC PyInit_mykmeanssp(void);
 
-#endif /* KMEANS */
+#endif /* __SPKMEANS_H__ */

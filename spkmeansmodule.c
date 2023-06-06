@@ -1,49 +1,12 @@
 #define PY_SSIZE_T_CLEAN
-#include <Python.h>
-#include <stdlib.h>
 #include "spkmeans.h"
 
 
-#if 0
-static PyObject *wam(PyObject *self, PyObject *args)
-{
-    PyObject *pyVectors, *pyVec, *pyW;
-    int n, d, i, j, res;
-    double coord;
-    if (!PyArg_ParseTuple(args, "O", &pyVectors))
-    {
-        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
-    }
-    n = PyObject_Length(pyVectors);
-    d = PyObject_Length(PyList_GetItem(pyVectors, 0));
-    if (n < 0 || d < 0)
-    {
-        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
-    }
-    double vectors[n][d];
-    double w[n][n];  /* weighed adjacency matrix */
-    for (i = 0; i < n; i++)
-    {
-        pyVec = PyList_GetItem(pyVectors, i);
-        for (j = 0; j < d; j++)
-        {
-            coord = PyFloat_AsDouble(PyList_GetItem(pyVec, j));
-            vectors[i][j] = coord;
-        }
-        for (j = 0; j < n; j++)
-        {
-            w[i][j] = 0;
-        }
-    } 
-    res = wamC(vectors[0], w[0], n, d);
-    if (res == ERROR_OUT_OF_MEMORY)
-    {
-        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
-    }
-    pyW = getList(w[0], n, n);
-    return Py_BuildValue("O", pyW);
-}
-#endif
+static PyObject *wam(PyObject *self, PyObject *args);
+static PyObject *ddg(PyObject *self, PyObject *args);
+static PyObject *gl(PyObject *self, PyObject *args);
+static PyObject *jacobi(PyObject *self, PyObject *args);
+static PyObject *getList(double *arr, int k, int d);
 
 
 static PyObject *wam(PyObject *self, PyObject *args)
@@ -68,7 +31,7 @@ static PyObject *wam(PyObject *self, PyObject *args)
     if (vectors == NULL || w == NULL)
     {
         /* cleanup */
-        return NULL;
+        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     for (i = 0; i < n; i++)
     {
@@ -114,7 +77,7 @@ static PyObject *ddg(PyObject *self, PyObject *args)
     if (vectors == NULL || dg == NULL)
     {
         /* cleanup */
-        return NULL;
+        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     for (i = 0; i < n; i++)
     {
@@ -126,7 +89,14 @@ static PyObject *ddg(PyObject *self, PyObject *args)
         }
         for (j = 0; j < n; j++)
         {
-            dg[i][j] = 0;
+            if (i == j)
+            {
+                dg[i][j] = 1;
+            }
+            else
+            {
+                dg[i][j] = 0;
+            }
         }
     }
     res = ddgC(n, d, vectors, dg);
@@ -160,7 +130,7 @@ static PyObject *gl(PyObject *self, PyObject *args)
     if (vectors == NULL || l == NULL)
     {
         /* cleanup */
-        return NULL;
+        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     for (i = 0; i < n; i++)
     {
@@ -186,48 +156,47 @@ static PyObject *gl(PyObject *self, PyObject *args)
 
 static PyObject *jacobi(PyObject *self, PyObject *args)
 {
-    PyObject *pyVectors, *pyVec, *pyJ;
+    PyObject *pyVectors, *pyVec, *pyVals, *pyVecs;
     size_t i, j;
-    int n, d, res;
+    int n, res;
     double coord;
     if (!PyArg_ParseTuple(args, "O", &pyVectors))
     {
         return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     n = PyObject_Length(pyVectors);
-    d = PyObject_Length(PyList_GetItem(pyVectors, 0));
-    if (n < 0 || d < 0)
+    if (n < 0)
     {
         return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
-    double (*mat)[d], (*jac)[n];
-    mat = (double (*)[d])malloc(sizeof(double) * n * d);
-    jac = (double (*)[n])malloc(sizeof(double) * n * n);  /* jacobi */
-    if (mat == NULL || jac == NULL)
+    double (*mat)[n], (*eigenvalues)[n], (*eigenvectors)[n];
+    mat = (double (*)[n])malloc(sizeof(double) * n * n);
+    eigenvalues = (double(*)[n])malloc(sizeof(double) * n * n);
+    eigenvectors = (double(*)[n])malloc(sizeof(double) * n * n);
+    if (mat == NULL || eigenvalues == NULL || eigenvectors == NULL)
     {
         /* cleanup */
-        return NULL;
+        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     for (i = 0; i < n; i++)
     {
         pyVec = PyList_GetItem(pyVectors, i);
-        for (j = 0; j < d; j++)
+        for (j = 0; j < n; j++)
         {
             coord = PyFloat_AsDouble(PyList_GetItem(pyVec, j));
             mat[i][j] = coord;
-        }
-        for (j = 0; j < n; j++)
-        {
-            jac[i][j] = 0;
+            eigenvalues[i][j] = coord;
+            eigenvectors[i][j] = 0;
         }
     }
-    res = jacobiC(n, d, mat, jac);
+    res = jacobiC(n, mat, eigenvalues, eigenvectors);
     if (res == ERROR_OUT_OF_MEMORY)
     {
         return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
-    pyJ = getList(jac[0], n, n);
-    return Py_BuildValue("O", pyJ);
+    pyVals = getList(eigenvalues[0], n, n);
+    pyVecs = getList(eigenvectors[0], n, n);
+    return Py_BuildValue("OO", pyVals, pyVecs);
 }
 
 static PyObject *getList(double *arr, int k, int d)

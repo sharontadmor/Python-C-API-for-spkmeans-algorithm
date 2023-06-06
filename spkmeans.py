@@ -51,7 +51,7 @@ def wam(data):
     # if w == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
     #     return
-    print_matrix(w)
+    # print_matrix(w)
     return w
 
 
@@ -80,12 +80,12 @@ def gl(data):
 
 
 def jacobi(data):
-    jac = km.jacobi(data)
+    eigenvalues, eigenvectors = km.jacobi(data)
     # if eigenvalues == ERROR_OUT_OF_MEMORY or eigenvectors == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
     #     return
-    print_jacobi(jac, jac)
-    return jac
+    print_jacobi(eigenvalues, eigenvectors)
+    return eigenvalues, eigenvectors
 
 
 def print_centroids(lst, idx_lst, k):
@@ -100,17 +100,30 @@ def print_centroids(lst, idx_lst, k):
 
 
 def print_matrix(x):
-    print(x)
+    """
+    print matrix x of dim n*d.
+    """
+    n = len(x)
+    d = len(x[0])
+    for i in range(n):
+        for j in range(d - 1):
+            print('{:.4f}'.format(x[i][j]), end=',')
+        print('{:.4f}'.format(x[i][d - 1]))
 
 
 def print_jacobi(eigenvalues, eigenvectors):
-    # n = len(eigenvalues)
-    # for i in range(n - 1):
-    #     print('{:.4f}'.format(eigenvalues[i, i]), end=',')
-    # print('{:.4f}'.format(eigenvalues[n - 1, n - 1]))
-
-    print(eigenvalues)
-    print(eigenvectors)
+    """
+    eigenvalues are on the diagonal of matrix eigenvalues.
+    eigenvectors are the columns of matrix eigenvectors.
+    """
+    n = len(eigenvalues)
+    for i in range(n - 1):
+        print('{:.4f}'.format(eigenvalues[i][i]), end=',')
+    print('{:.4f}'.format(eigenvalues[n - 1][n - 1]))
+    for i in range(n):
+        for j in range(n - 1):
+            print('{:.4f}'.format(eigenvectors[i][j]), end=',')
+        print('{:.4f}'.format(eigenvectors[i][n - 1]))
 
 
 def operation(goal, data):

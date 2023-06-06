@@ -24,6 +24,20 @@ void printMatrix(int size, int dim, double (*a)[dim])
     printf("\n");
 }
 
+int kmeansC(int n, int d, int k, double (*vectors)[d], double (*centroids)[d])
+/*
+n - number of vectors.
+d - dimention of each vector.
+k - number of clusters.
+vectors - array representing a matrix of dim n*d of all data points that were observed.
+centroids - array representing a matrix of dim k*d of the initial centroids.
+this function calculates the final centroids of clustering algorithm kmeans++.
+returns 0 if operation is successful.
+*/
+{
+    return 0;
+}
+
 int wamC(int n, int d, double (*vectors)[d], double (*w)[n])
 /*
 n - number of vectors.

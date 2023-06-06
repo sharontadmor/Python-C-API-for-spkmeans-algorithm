@@ -17,7 +17,7 @@ python3 spkmeans.py 3 jacobi tests/jacobi_0.txt
 """
 
 
-# seed
+np.random.seed(0)
 MIN_ARGS = 2
 MAX_ARGS = 3
 KEY = 0
@@ -35,18 +35,105 @@ def parse_data(file_name):
     return data
 
 
-def default_k():
-    pass
+def eigengap_heuristic():
+    """
+    determines the number of clusters, k.
+    """
+    return 2
 
 
-def spk(data):
-    return km.spk(data)
+def first_k_eigenvectors(data, k):
+    """
+    computes the first k eigenvectors of the laplacian matrix of the graph created from given data points.
+    the first k eigenvectors are eigenvectors corresponding to the k smallest eigenvalues.
+    pre: num of eigenvectors > k
+    """
+    # get eigenvalues and eigenvectors of the graph laplacian matrix:
+    eigenvalues, eigenvectors = jacobi(np.array(gl(data)))
+    # sort eigenvalues from smallest to largest, while updating order of corresponding eigenvectors:
+
+    # create a matrix which columns are the first k eigenvectors:
+    u = np.array(eigenvectors)
+    return u
+
+
+def init_centroids(vectors, k):
+    """
+    initializes centroids out of given array of vectors.
+    choice of centroids is based on weighted probability distribution.
+    """
+    n = len(vectors)
+    centroids = np.array([None] * k)
+    initial_idx = np.array([None] * k)
+    distances = [None] * n
+    # choose first centroid uniformly at random:
+    random_vec(vectors, centroids, initial_idx, 0, None)
+    # choose the rest of the centroids:
+    for i in range(1, k):
+        for j in range(n):
+            distances[j] = min_dist(centroids, vectors[j])
+        # choose next centroid using weighted probability distribution:
+        pr = distances / np.sum(distances)
+        random_vec(vectors, centroids, initial_idx, i, pr)
+    return initial_idx, centroids
+
+
+def random_vec(vectors, centroids, initial_idx, i, pr):
+    """
+    chooses a vector from vectors at random, with specified probability.
+    """
+    if not (pr is None):
+        rnd_idx = np.random.choice(vectors.shape[0], p=pr)
+    else:
+        # np.random.seed(0)
+        rnd_idx = np.random.choice(vectors.shape[0])
+    centroids[i] = vectors[rnd_idx]
+    initial_idx[i] = rnd_idx
+
+
+def min_dist(lst, vec):
+    """
+    calculates the distance between given vector and the nearest centroid from given list.
+    """
+    distances = list(filter(lambda x: x is not None, [
+                     eclidean_dist(lst[i], vec) for i in range(len(lst))]))
+    return np.amin(distances)
+
+
+def eclidean_dist(vec1, vec2):
+    """
+    calculates eclidean distance between vec1 and vec2.
+    eclidean distance is exactly the norm of (vec1 - vec2).
+    """
+    if not (vec1 is None or vec2 is None):
+        return np.linalg.norm(vec1 - vec2)
+
+
+def spk(data, k):
+    """
+    The Unnormalized Spectral K-means clustering algorithm.
+    """
+    u = first_k_eigenvectors(data, k)
+    initial_idx, initial_centroids = init_centroids(u, k)
+
+    u = [u[i].tolist() for i in range(len(u))]
+    initial_centroids = [initial_centroids[i].tolist()
+                         for i in range(len(initial_centroids))]
+    
+    final_centroids = km.spk(u, initial_centroids, k)
+    # if final_centroids == ERROR_OUT_OF_MEMORY:
+    #     print(ERROR['GENERAL_ERROR_MESSAGE'])
+    #     return
+    print(initial_idx, final_centroids)
+    return final_centroids
 
 
 def wam(data):
     """
     return: weighed adjacency matrix, or None if operation failed.
     """
+    data = [data[i].tolist()
+                     for i in range(len(data))]
     w = km.wam(data)
     # if w == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
@@ -59,6 +146,8 @@ def ddg(data):
     """
     return: diagonal degree matrix, or None if operation failed.
     """
+    data = [data[i].tolist()
+                     for i in range(len(data))]
     d = km.ddg(data)
     # if d == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
@@ -71,6 +160,8 @@ def gl(data):
     """
     return: the graph laplacian matrix, or None if operation failed.
     """
+    data = [data[i].tolist()
+                     for i in range(len(data))]
     l = km.gl(data)
     # if l == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
@@ -80,6 +171,8 @@ def gl(data):
 
 
 def jacobi(data):
+    data = [data[i].tolist()
+                     for i in range(len(data))]
     eigenvalues, eigenvectors = km.jacobi(data)
     # if eigenvalues == ERROR_OUT_OF_MEMORY or eigenvectors == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
@@ -126,9 +219,9 @@ def print_jacobi(eigenvalues, eigenvectors):
         print('{:.4f}'.format(eigenvectors[i][n - 1]))
 
 
-def operation(goal, data):
+def operation(goal, data, k):
     if goal == "spk":
-        return spk(data)
+        return spk(data, k)
     if goal == "wam":
         return wam(data)
     if goal == "ddg":
@@ -146,11 +239,9 @@ def main():
         k = int(k)
     else:
         goal, file_name = args
-        k = default_k()
+        k = eigengap_heuristic()
     data = parse_data(file_name)
-    data = [data[i].tolist()
-                     for i in range(len(data))]
-    res = operation(goal, data)
+    res = operation(goal, data, k)
 
 
 if __name__ == "__main__":

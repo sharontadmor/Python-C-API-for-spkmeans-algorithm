@@ -1,6 +1,8 @@
 #ifndef __SPKMEANS_H__
 #define __SPKMEANS_H__
 #define ERROR_OUT_OF_MEMORY 1
+#define MAX_ITER 300
+#define KMEANS_EPS 0
 #define EPS 1.0 * pow(10, -5)
 #define MAX_ROTATIONS 100
 #define MATRIX_IS_DIAGONAL -1
@@ -23,6 +25,7 @@ typedef struct vector
     struct vector *prev;
 } Vector;
 
+int kmeansC(int n, int d, int k, double (*vectors)[d], double (*centroids)[d]);
 int wamC(int n, int d, double (*vectors)[d], double (*w)[n]);
 int ddgC(int n, int d, double (*vectors)[d], double (*dg)[n]);
 int glC(int n, int d, double (*vectors)[d], double (*l)[n]);

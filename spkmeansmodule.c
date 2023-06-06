@@ -1,13 +1,63 @@
 #define PY_SSIZE_T_CLEAN
 #include "spkmeans.h"
 
-
+static PyObject *spk(PyObject *self, PyObject *args);
 static PyObject *wam(PyObject *self, PyObject *args);
 static PyObject *ddg(PyObject *self, PyObject *args);
 static PyObject *gl(PyObject *self, PyObject *args);
 static PyObject *jacobi(PyObject *self, PyObject *args);
 static PyObject *getList(double *arr, int k, int d);
 
+static PyObject *spk(PyObject *self, PyObject *args)
+{
+    PyObject *pyVectors, *pyCentroids, *pyVec, *finalCentroids;
+    int n, k, d, i, j, res;
+    double coord;
+    if (!PyArg_ParseTuple(args, "OOi", &pyVectors, &pyCentroids, &k))
+    {
+        return NULL;
+    }
+    n = PyObject_Length(pyVectors);
+    d = PyObject_Length(PyList_GetItem(pyVectors, 0));
+    if (n < 0 || d < 0)
+    {
+        return NULL;
+    }
+    double (*vectors)[d], (*centroids)[d];
+    vectors = (double (*)[d])malloc(sizeof(double) * n * d);
+    centroids = (double (*)[d])malloc(sizeof(double) * k * d);
+    if (vectors == NULL || centroids == NULL)
+    {
+        /* cleanup */
+        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
+    }
+    for (i = 0; i < n; i++)
+    {
+        pyVec = PyList_GetItem(pyVectors, i);
+        for (j = 0; j < d; j++)
+        {
+            coord = PyFloat_AsDouble(PyList_GetItem(pyVec, j));
+            vectors[i][j] = coord;
+        }
+    }
+    for (i = 0; i < k; i++)
+    {
+        pyVec = PyList_GetItem(pyCentroids, i);
+        for (j = 0; j < d; j++)
+        {
+            coord = PyFloat_AsDouble(PyList_GetItem(pyVec, j));
+            centroids[i][j] = coord;
+        }
+    }
+    /* update centroids array */
+    res = kmeansC(n, d, k, vectors, centroids);
+    if (res == ERROR_OUT_OF_MEMORY)
+    {
+        return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
+    }
+    finalCentroids = getList(centroids[0], k, d);
+    return Py_BuildValue("O", finalCentroids);
+}
 
 static PyObject *wam(PyObject *self, PyObject *args)
 {
@@ -218,6 +268,15 @@ static PyObject *getList(double *arr, int k, int d)
 }
 
 static PyMethodDef kmeansMethods[] = {
+    {"spk",
+     (PyCFunction)spk,
+     METH_VARARGS,
+     PyDoc_STR(
+         "description. \
+         arguments description: \
+         (1) vectors - an array of all data points that were observed. \
+         (2) ... \
+         return : .")},
     {"wam",
      (PyCFunction)wam,
      METH_VARARGS,

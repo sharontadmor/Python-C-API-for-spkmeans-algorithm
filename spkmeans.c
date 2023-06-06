@@ -1,17 +1,13 @@
 #include "spkmeans.h"
 
 /* helper functions for K-means*/
-void cleanup(vector **partition, vector **clusters);
-static vector *mallocVector(matrix *vectors, int vecIdx);
-static void setVectorData(vector *vec, double *coords, vector *next, vector *prev);
-static void setMatrixData(matrix *mat, double *arr, int rowsNum, int colsNul);
 static void addNode(vector **clusters, int clIdx, vector *vec);
-static void removeNode(vector **clusters, vector **partition, int vecIdx);
-static void removeHeadVector(vector **clusters, vector *vec);
-static int isBreakConditionKmeans(int count, int convergences);
-double distance(matrix *vectors1, matrix *vectors2, int vecIdx1, int vecIdx2);
-static void assignVectorToCluster(vector **clusters, int clIdx, vector **partition, vector *vec, int vecIdx);
-int updateCenrtoids(matrix *centroids, vector **clusters);
+static void removeNode(vector **clusters, vector **partition, int vecIdx, int clustersNum);
+static void removeHeadVector(vector **clusters, vector *vec, int clustersNum);
+static void assignVectorToCluster(vector **clusters, int clIdx, vector **partition, vector *vec, int vecIdx, int clustersNum);
+static int isBreakConditionKmeans(int count, int convergences, int clustersNum);
+static double distance(matrix *vectors1, matrix *vectors2, int vecIdx1, int vecIdx2);
+static int updateCenrtoids(matrix *centroids, vector **clusters);
 /* helper functions for Jacobi */
 static double getSumSquares(matrix *a);
 static int isBreakConditionJacobi(int count, double offA, double offVecs);
@@ -22,117 +18,6 @@ static double getC(double t);
 static double getS(double c, double t);
 static int rotate(matrix *a, matrix *b, matrix *p, int i, int j);
 static int matrixMultiplication(matrix *a, matrix *b, matrix *prod);
-
-void printMatrix(matrix *a)
-{
-    int i, j;
-    for (i = 0; i < a->rowsNum; i++)
-    {
-        for (j = 0; j < a->colsNum; j++)
-        {
-            printf("%.4f, ", getCellValue(a, i, j));
-        }
-        printf("\n");
-    }
-    printf("\n");
-}
-
-void cleanup(vector **partition, vector **clusters)
-/*
-loop over partition, free nodes of vectors.
-free partition.
-free clusters.
-*/
-{
-    int i;
-    if (partition != NULL)
-    {
-        for (i = 0; i < n; i++)
-        {
-            if (partition[i] != NULL)
-            {
-                free(partition[i]);
-            }
-        }
-        free(partition);
-    }
-    if (clusters != NULL)
-    {
-        free(clusters);
-    }
-}
-
-static vector *mallocVector(matrix *vectors, int vecIdx)
-/*
-returns a vector if vector creation is successful,
-or NULL otherwise.
-*/
-{
-    double *coords;
-    vector *vec;
-    vec = (vector *)malloc(sizeof(vector));
-    if (vec == NULL)
-    {
-        return NULL;
-    }
-    coords = &vectors->array[vecIdx * vectors->colsNum];
-    setVectorData(vec, coords, NULL, NULL);
-    return vec;
-}
-
-static void setVectorData(vector *vec, double *coords, vector *next, vector *prev)
-/*
-sets data of vector node.
-*/
-{
-    vec->coords = coords;
-    vec->next = next;
-    vec->prev = prev;
-}
-
-matrix *mallocMatrix(int rowsNum, int colsNum)
-/*
-returns a matrix if matrix creation is successful,
-or NULL otherwise.
-*/
-{
-    matrix *mat;
-    double *arr;
-    mat = (matrix *)malloc(sizeof(matrix));
-    arr = (double *)malloc(sizeof(double) * rowsNum * colsNum);
-    if (mat == NULL || arr == NULL)
-    {
-        return NULL;
-    }
-    setMatrixData(mat, arr, rowsNum, colsNum);
-    return mat;
-}
-
-static void setMatrixData(matrix *mat, double *arr, int rowsNum, int colsNum)
-/*
-sets data of matrix.
-*/
-{
-    mat->rowsNum = rowsNum;
-    mat->colsNum = colsNum;
-    mat->array = arr;
-}
-
-double getCellValue(matrix *mat, int row, int col)
-/*
-returns value of cell in a 2 dimensional array.
-*/
-{
-    return mat->array[mat->colsNum * row + col];
-}
-
-void setCellValue(matrix *mat, int row, int col, double val)
-/*
-sets value of cell in a 2 dimensional array.
-*/
-{
-    mat->array[mat->colsNum * row + col] = val;
-}
 
 static void addNode(vector **clusters, int clIdx, vector *vec)
 /*
@@ -156,7 +41,7 @@ adds a node of type Vector to linked list.
     }
 }
 
-static void removeNode(vector **clusters, vector **partition, int vecIdx)
+static void removeNode(vector **clusters, vector **partition, int vecIdx, int clustersNum)
 /*
 removes a given node from linked list.
 */
@@ -164,7 +49,7 @@ removes a given node from linked list.
     vector *vec = partition[vecIdx];
     if (vec->prev == NULL) /* head vector */
     {
-        removeHeadVector(clusters, vec);
+        removeHeadVector(clusters, vec, clustersNum);
     }
     if (vec->prev != NULL)
     {
@@ -178,7 +63,7 @@ removes a given node from linked list.
     vec->next = NULL;
 }
 
-static void removeHeadVector(vector **clusters, vector *vec)
+static void removeHeadVector(vector **clusters, vector *vec, int clustersNum)
 /*
 removes a given node from linked list,
 pre: node is the head of linked list, vec->prev == NULL
@@ -188,7 +73,7 @@ pre: node is the head of linked list, vec->prev == NULL
     /* if cluster size is 1 */
     if (vec->prev == NULL && vec->next == NULL)
     {
-        for (i = 0; i < k; i++)
+        for (i = 0; i < clustersNum; i++)
         {
             if (clusters[i] == vec)
             {
@@ -197,7 +82,7 @@ pre: node is the head of linked list, vec->prev == NULL
             }
         }
     }
-    for (i = 0; i < k; i++)
+    for (i = 0; i < clustersNum; i++)
     {
         if (clusters[i] == vec)
         {
@@ -206,16 +91,34 @@ pre: node is the head of linked list, vec->prev == NULL
     }
 }
 
-static int isBreakConditionKmeans(int count, int convergences)
+static void assignVectorToCluster(vector **clusters, int clIdx, vector **partition, vector *vec, int vecIdx, int clustersNum)
+/*
+removes vector vec from current cluster,
+inserts vec to the cluster in index clIdx in clusters array.
+*/
 {
-    if (count == MAX_ITER || convergences == k)
+    if (partition[vecIdx] == NULL) /* vector is not yet assinged to a cluster */
+    {
+        addNode(clusters, clIdx, vec);
+        partition[vecIdx] = vec;
+    }
+    else
+    {
+        removeNode(clusters, partition, vecIdx, clustersNum);
+        addNode(clusters, clIdx, partition[vecIdx]);
+    }
+}
+
+static int isBreakConditionKmeans(int count, int convergences, int clustersNum)
+{
+    if (count == MAX_ITER || convergences == clustersNum)
     {
         return 1;
     }
     return 0;
 }
 
-double distance(matrix *vectors1, matrix *vectors2, int vecIdx1, int vecIdx2)
+static double distance(matrix *vectors1, matrix *vectors2, int vecIdx1, int vecIdx2)
 /*
 calculates eclidean distance between vec1 and vec2.
 pre: len(vec1) == len(vec2).
@@ -233,25 +136,7 @@ pre: len(vec1) == len(vec2).
     return sqrt(sum);
 }
 
-static void assignVectorToCluster(vector **clusters, int clIdx, vector **partition, vector *vec, int vecIdx)
-/*
-removes vector vec from current cluster,
-inserts vec to the cluster in index clIdx in clusters array.
-*/
-{
-    if (partition[vecIdx] == NULL) /* vector is not yet assinged to a cluster */
-    {
-        addNode(clusters, clIdx, vec);
-        partition[vecIdx] = vec;
-    }
-    else
-    {
-        removeNode(clusters, partition, vecIdx);
-        addNode(clusters, clIdx, partition[vecIdx]);
-    }
-}
-
-int updateCenrtoids(matrix *centroids, vector **clusters)
+static int updateCenrtoids(matrix *centroids, vector **clusters)
 /*
 iterates over all the clusters and calculates their new centroids.
 */
@@ -266,7 +151,6 @@ iterates over all the clusters and calculates their new centroids.
     oldCnt = mallocMatrix(1, centroids->colsNum);
     if (oldCnt == NULL)
     {
-        /* cleanup */
         return -1;
     }
     for (i = 0; i < centroids->rowsNum; i++)
@@ -306,11 +190,11 @@ iterates over all the clusters and calculates their new centroids.
             convergences++;
         }
     }
-    free(oldCnt->array);
+    matrixCleanup(oldCnt);
     return convergences;
 }
 
-int kmeansC(int vectorsNum, int dim, int clustersNum, matrix *vectors, matrix *centroids)
+int kmeansC(int vectorsNum, int clustersNum, matrix *vectors, matrix *centroids)
 /*
 Implementation for K-means clustering algorithm.
 arguments:
@@ -318,7 +202,6 @@ arguments:
 (2) centroids - an array of data points chosen as initial centroids.
 (3) clustersNum - number of required clusters.
 (4) vectorsNum - number of given vectors.
-(5) dim - dimention of a vector.
 variables:
 (1) partition - an array of pointers to vectors assigned to clusters.
 each index in partition is appropriate to the index of same vector in vectors.
@@ -326,7 +209,7 @@ each index in partition is appropriate to the index of same vector in vectors.
 return : 0 if run was successful, 1 otherwise.
 */
 {
-    int i, j, iterations, convergences, assignedCluster;
+    int i, j, k, n, iterations, convergences, assignedCluster;
     double dist, minDist;
     vector **partition, **clusters, *vec;
 
@@ -334,13 +217,12 @@ return : 0 if run was successful, 1 otherwise.
     convergences = 0;
     k = clustersNum;
     n = vectorsNum;
-    d = dim;
     partition = (vector **)malloc(sizeof(vector *) * n);
     clusters = (vector **)malloc(sizeof(vector *) * k);
     if (partition == NULL || clusters == NULL)
     {
-        /* cleanup(partition, clusters); */
-        return ERROR_OUT_OF_MEMORY;
+        vectorCleanup(partition, clusters, n);
+        return EXIT_FAILURE;
     }
     for (i = 0; i < n; i++)
     {
@@ -351,7 +233,7 @@ return : 0 if run was successful, 1 otherwise.
         clusters[i] = NULL;
     }
 
-    while (!isBreakConditionKmeans(iterations, convergences))
+    while (!isBreakConditionKmeans(iterations, convergences, k))
     {
         iterations++;
         /* iterate over all the vectors, sort vectors to clusters */
@@ -374,20 +256,20 @@ return : 0 if run was successful, 1 otherwise.
                 vec = mallocVector(vectors, i);
                 if (vec == NULL)
                 {
-                    /* cleanup(partition, clusters); */
-                    return ERROR_OUT_OF_MEMORY;
+                    vectorCleanup(partition, clusters, n);
+                    return EXIT_FAILURE;
                 }
-                assignVectorToCluster(clusters, assignedCluster, partition, vec, i);
+                assignVectorToCluster(clusters, assignedCluster, partition, vec, i, k);
             }
             else
             {
-                assignVectorToCluster(clusters, assignedCluster, partition, NULL, i);
+                assignVectorToCluster(clusters, assignedCluster, partition, NULL, i, k);
             }
         }
         convergences = updateCenrtoids(centroids, clusters);
     }
-    /* cleanup(partition, clusters); */
-    return 0;
+    vectorCleanup(partition, clusters, n);
+    return EXIT_SUCCESS;
 }
 
 int wamC(int n, int d, matrix *vectors, matrix *w)
@@ -459,16 +341,20 @@ this function calculates dg, the diagonal degree matrix of the graph created fro
 returns 0 if operation is successful.
 */
 {
-    int i, j;
+    int i, j, res;
     double degree;
     matrix *w;
     w = mallocMatrix(n, n); /* weighed adjacency matrix */
     if (w == NULL)
     {
-        /* cleanup */
-        return ERROR_OUT_OF_MEMORY;
+        return EXIT_FAILURE;
     }
-    wamC(n, d, vectors, w);
+    res = wamC(n, d, vectors, w);
+    if (res == EXIT_FAILURE)
+    {
+        matrixCleanup(w);
+        return EXIT_FAILURE;
+    }
     for (i = 0; i < n; i++)
     {
         degree = 0;
@@ -478,7 +364,8 @@ returns 0 if operation is successful.
         }
         setCellValue(dg, i, i, degree);
     }
-    return 0;
+    matrixCleanup(w);
+    return EXIT_SUCCESS;
 }
 
 int glC(int n, int d, matrix *vectors, matrix *l)
@@ -491,15 +378,16 @@ this function calculates l, the graph laplacian matrix of the graph created from
 returns 0 if operation is successful.
 */
 {
-    int i, j;
+    int i, j, res;
     double diff;
     matrix *w, *dg;
-    w = mallocMatrix(n, n); /* weighed adjacency matrix */
+    w = mallocMatrix(n, n);  /* weighed adjacency matrix */
     dg = mallocMatrix(n, n); /* diagonal degree matrix */
     if (w == NULL || dg == NULL)
     {
-        /* cleanup */
-        return ERROR_OUT_OF_MEMORY;
+        matrixCleanup(w);
+        matrixCleanup(dg);
+        return EXIT_FAILURE;
     }
     for (i = 0; i < n; i++)
     {
@@ -516,8 +404,20 @@ returns 0 if operation is successful.
             }
         }
     }
-    wamC(n, d, vectors, w);
-    ddgC(n, d, vectors, dg);
+    res = wamC(n, d, vectors, w);
+    if (res == EXIT_FAILURE)
+    {
+        matrixCleanup(w);
+        matrixCleanup(dg);
+        return EXIT_FAILURE;
+    }
+    res = ddgC(n, d, vectors, dg);
+    if (res == EXIT_FAILURE)
+    {
+        matrixCleanup(w);
+        matrixCleanup(dg);
+        return EXIT_FAILURE;
+    }
     for (i = 0; i < n; i++)
     {
         for (j = 0; j < n; j++)
@@ -526,7 +426,9 @@ returns 0 if operation is successful.
             setCellValue(l, i, j, diff);
         }
     }
-    return 0;
+    matrixCleanup(w);
+    matrixCleanup(dg);
+    return EXIT_SUCCESS;
 }
 
 int jacobiC(int n, matrix *a, matrix *eigenvals, matrix *eigenvecs)
@@ -555,8 +457,7 @@ returns 0 if operation is successful.
     p = mallocMatrix(n, n);
     if (p == NULL)
     {
-        /* cleanup */
-        return ERROR_OUT_OF_MEMORY;
+        return EXIT_FAILURE;
     }
     offA = getSumSquares(a);
 
@@ -601,8 +502,8 @@ returns 0 if operation is successful.
                 prod = mallocMatrix(n, n);
                 if (prod == NULL)
                 {
-                    /* cleanup */
-                    return ERROR_OUT_OF_MEMORY;
+                    matrixCleanup(p);
+                    return EXIT_FAILURE;
                 }
                 for (i = 0; i < n; i++)
                 {
@@ -620,8 +521,8 @@ returns 0 if operation is successful.
         temp = mallocMatrix(n, n);
         if (temp == NULL)
         {
-            /* cleanup */
-            return ERROR_OUT_OF_MEMORY;
+            matrixCleanup(p);
+            return EXIT_FAILURE;
         }
         for (i = 0; i < n; i++)
         {
@@ -648,7 +549,7 @@ returns 0 if operation is successful.
 
         calculateP(eigenvals, p, idx[0], idx[1]);
         rotate(eigenvals, temp, p, idx[0], idx[1]);
-        free(eigenvals);
+        matrixCleanup(eigenvals);
         eigenvals = temp;
 
         /*
@@ -674,8 +575,8 @@ returns 0 if operation is successful.
             prod = mallocMatrix(n, n);
             if (prod == NULL)
             {
-                /* cleanup */
-                return ERROR_OUT_OF_MEMORY;
+                matrixCleanup(p);
+                return EXIT_FAILURE;
             }
             for (i = 0; i < n; i++)
             {
@@ -685,7 +586,7 @@ returns 0 if operation is successful.
                 }
             }
             matrixMultiplication(eigenvecs, p, prod);
-            free(eigenvecs);
+            matrixCleanup(eigenvecs);
             eigenvecs = prod;
         }
         offVecs = getSumSquares(eigenvals);
@@ -705,8 +606,8 @@ returns 0 if operation is successful.
     printf("final eigenvalues:\n");
     printMatrix(n, n, eigenvalues);
     */
-
-    return 0;
+    matrixCleanup(p);
+    return EXIT_SUCCESS;
 }
 
 static double getSumSquares(matrix *a)

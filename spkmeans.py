@@ -21,7 +21,8 @@ MIN_ARGS = 2
 MAX_ARGS = 3
 KEY = 0
 DEFAULT_K = -1
-ERROR_OUT_OF_MEMORY = 1
+OPERATION_SUCCESSFL = 0
+GENERAL_ERROR = 1
 ERROR = {
     'GENERAL_ERROR_MESSAGE': 'An Error Has Occurred'
 }
@@ -66,13 +67,13 @@ def first_k_eigenvectors(data, k):
     # eigenvalues = np.array([[4, 0, 0, 0], [0, 2, 0, 0], [0, 0, 1, 0], [0, 0, 0, 3]])
     # eigenvectors = np.array([[4, 2, 1, 'a'], [4, 2, 1, 'b'], [4, 2, 1, 'c'], [4, 2, 1, 'd']])
     # print("1:")
-    # print(eigenvalues)
+    # print("eigenvalues:\n", eigenvalues)
     # print()
     # print("eigenvectors:\n", eigenvectors)
     
 
     eigenvalues = np.diag(eigenvalues)
-    eigenvectors = eigenvectors.T
+    eigenvectors = np.array(eigenvectors).T
 
     # print("2:")
     # print(eigenvalues)
@@ -168,11 +169,10 @@ def spk(data, k):
                          for i in range(len(initial_centroids))]
     
     final_centroids = km.spk(u, initial_centroids, k)
-    if final_centroids == ERROR_OUT_OF_MEMORY:
-        print(ERROR['GENERAL_ERROR_MESSAGE'])
-        return
+    if final_centroids == GENERAL_ERROR:
+        return GENERAL_ERROR
     print_centroids(final_centroids, initial_idx, k)
-    return final_centroids
+    return OPERATION_SUCCESSFL
 
 
 def wam(data):
@@ -182,11 +182,10 @@ def wam(data):
     data = [data[i].tolist()
                      for i in range(len(data))]
     w = km.wam(data)
-    # if w == ERROR_OUT_OF_MEMORY:
-    #     print(ERROR['GENERAL_ERROR_MESSAGE'])
-    #     return
+    if w == GENERAL_ERROR:
+        return GENERAL_ERROR
     print_matrix(w)
-    return w
+    return OPERATION_SUCCESSFL
 
 
 def ddg(data):
@@ -196,11 +195,10 @@ def ddg(data):
     data = [data[i].tolist()
                      for i in range(len(data))]
     d = km.ddg(data)
-    # if d == ERROR_OUT_OF_MEMORY:
-    #     print(ERROR['GENERAL_ERROR_MESSAGE'])
-    #     return
+    if d == GENERAL_ERROR:
+        return GENERAL_ERROR
     print_matrix(d)
-    return d
+    return OPERATION_SUCCESSFL
 
 
 def gl(data):
@@ -210,22 +208,23 @@ def gl(data):
     data = [data[i].tolist()
                      for i in range(len(data))]
     l = km.gl(data)
-    # if l == ERROR_OUT_OF_MEMORY:
-    #     print(ERROR['GENERAL_ERROR_MESSAGE'])
-    #     return
+    if l == GENERAL_ERROR:
+        return GENERAL_ERROR
     print_matrix(l)
-    return l
+    return OPERATION_SUCCESSFL
 
 
 def jacobi(data):
+    """
+    calculates eigenvalues and eigenvectors of a symmetric matrix.
+    """
     data = [data[i].tolist()
                      for i in range(len(data))]
     eigenvalues, eigenvectors = km.jacobi(data)
-    # if eigenvalues == ERROR_OUT_OF_MEMORY or eigenvectors == ERROR_OUT_OF_MEMORY:
-    #     print(ERROR['GENERAL_ERROR_MESSAGE'])
-    #     return
+    if eigenvalues == GENERAL_ERROR or eigenvectors == GENERAL_ERROR:
+        return GENERAL_ERROR
     print_jacobi(eigenvalues, eigenvectors)
-    return eigenvalues, eigenvectors
+    return OPERATION_SUCCESSFL
 
 
 def print_centroids(lst, idx_lst, k):
@@ -287,9 +286,15 @@ def main():
     else:
         goal, file_name = args
         k = DEFAULT_K
-    data = parse_data(file_name)
-    return operation(goal, data, k)
-
+    if not os.path.isfile(file_name):
+        print(ERROR['GENERAL_ERROR_MESSAGE'])
+        return GENERAL_ERROR
+    data = parse_data(file_name)        
+    res = operation(goal, data, k)
+    if res == GENERAL_ERROR:
+        print(ERROR['GENERAL_ERROR_MESSAGE'])
+        return GENERAL_ERROR
+    return OPERATION_SUCCESSFL
 
 if __name__ == "__main__":
     main()

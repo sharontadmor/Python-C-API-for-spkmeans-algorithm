@@ -36,7 +36,10 @@ free a.
 {
     if (a != NULL)
     {
-        free(a->array);
+        if (a->array != NULL)
+        {
+            free(a->array);
+        }
         free(a);
     }
 }
@@ -61,7 +64,7 @@ or NULL otherwise.
 
 static void setVectorData(vector *vec, double *coords, vector *next, vector *prev)
 /*
-sets data of vector node.
+sets data of vector.
 */
 {
     vec->coords = coords;
@@ -77,10 +80,15 @@ or NULL otherwise.
 {
     matrix *mat;
     double *arr;
-    mat = (matrix *)malloc(sizeof(matrix));
     arr = (double *)malloc(sizeof(double) * rowsNum * colsNum);
-    if (mat == NULL || arr == NULL)
+    if (arr == NULL)
     {
+        return NULL;
+    }
+    mat = (matrix *)malloc(sizeof(matrix));
+    if (mat == NULL)
+    {
+        free(arr);
         return NULL;
     }
     setMatrixData(mat, arr, rowsNum, colsNum);

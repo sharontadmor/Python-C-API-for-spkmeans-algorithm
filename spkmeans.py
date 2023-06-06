@@ -2,7 +2,6 @@ import sys
 import os
 import numpy as np
 import math
-# import pandas as pd
 import mykmeanssp as km
 # import mykmeanssp_python as km
 
@@ -12,7 +11,10 @@ build using:
 python3 setup.py build_ext --inplace
 
 run using:
-python3 setup.py build_ext --inplace && python3 spkmeans.py spk tests/test10.txt
+python3 setup.py build_ext --inplace && python3 spkmeans.py spk tests/test_batch/test1.txt
+
+test for case -0:
+python3 setup.py build_ext --inplace && python3 spkmeans.py jacobi tests/test_batch/test0_j.txt
 """
 
 
@@ -30,7 +32,9 @@ ERROR = {
 
 def parse_data(file_name):
     """
-    returns matrix of given data as Numpy array.
+    return : matrix of given data as Numpy array.
+    pre : input is valid - valid range of float variables, same amount of columns in each row,
+    all given data points are different.  
     """
     data = np.loadtxt(file_name, delimiter=',')
     return data
@@ -38,23 +42,24 @@ def parse_data(file_name):
 
 def eigengap_heuristic(eigenvalues):
     """
-    eigenvalues - sorted array of doubles in ascending oeder.
-    return: k, the number of clusters.
+    eigenvalues : sorted array of doubles in ascending order.
+    return : k, the number of clusters.
     """
     n = len(eigenvalues)
     vals1 = np.array(eigenvalues[0 : n - 1])
     vals2 = np.array(eigenvalues[1 : n])
-    eigengap = vals1 - vals2
+    eigengap = np.abs(vals1 - vals2)
     k = np.argmax(eigengap[:math.floor(n / 2)])
     return k + 1
 
 
 def first_k_eigenvectors(data, k):
     """
-    computes the first k eigenvectors of the laplacian matrix of the graph created from given data points.
+    computes the first k eigenvectors of the laplacian matrix of an undirected graph,
+    which represents n datapoints given in matrix data,
     the first k eigenvectors are eigenvectors corresponding to the k smallest eigenvalues.
-    pre: num of eigenvectors > k
-    return: u - matrix which columns are the first k eigenvectors; k - number of required clusters.
+    pre : num of eigenvectors > k
+    return : u - matrix whose columns are the first k eigenvectors; k - number of required clusters.
     """
     # get eigenvalues and eigenvectors of the graph laplacian matrix.
     # the eigenvectors are the columns of matrix eigenvectors,
@@ -70,7 +75,7 @@ def first_k_eigenvectors(data, k):
     # print("eigenvalues:\n", eigenvalues)
     # print()
     # print("eigenvectors:\n", eigenvectors)
-    
+    # print_jacobi(eigenvalues, eigenvectors)
 
     eigenvalues = np.diag(eigenvalues)
     eigenvectors = np.array(eigenvectors).T
@@ -108,7 +113,7 @@ def first_k_eigenvectors(data, k):
 
 def init_centroids(vectors, k):
     """
-    initializes centroids out of given array of vectors.
+    initializes k centroids out of given array of vectors.
     choice of centroids is based on weighted probability distribution.
     """
     n = len(vectors)
@@ -177,7 +182,11 @@ def spk(data, k):
 
 def wam(data):
     """
-    return: weighed adjacency matrix, or None if operation failed.
+    calculates weighed adjacency matrix.
+    the weighed adjacency matrix represents an undirected graph,
+    which represents n datapoints given in matrix data,
+    and each datapoint is viewed as a vertex.
+    return : 0 if run was successful, 1 otherwise.
     """
     data = [data[i].tolist()
                      for i in range(len(data))]
@@ -190,7 +199,10 @@ def wam(data):
 
 def ddg(data):
     """
-    return: diagonal degree matrix, or None if operation failed.
+    calculates diagonal degree matrix of an undirected graph,
+    which represents n datapoints given in matrix data,
+    and each datapoint is viewed as a vertex.
+    return : 0 if run was successful, 1 otherwise.
     """
     data = [data[i].tolist()
                      for i in range(len(data))]
@@ -203,7 +215,10 @@ def ddg(data):
 
 def gl(data):
     """
-    return: the graph laplacian matrix, or None if operation failed.
+    calculates the graph laplacian matrix of an undirected graph,
+    which represents n datapoints given in matrix data,
+    and each datapoint is viewed as a vertex.
+    return : 0 if run was successful, 1 otherwise.
     """
     data = [data[i].tolist()
                      for i in range(len(data))]
@@ -216,7 +231,8 @@ def gl(data):
 
 def jacobi(data):
     """
-    calculates eigenvalues and eigenvectors of a symmetric matrix.
+    calculates eigenvalues and eigenvectors of symmetric matrix data.
+    return : 0 if run was successful, 1 otherwise.
     """
     data = [data[i].tolist()
                      for i in range(len(data))]
@@ -228,6 +244,11 @@ def jacobi(data):
 
 
 def print_centroids(lst, idx_lst, k):
+    """
+    print centroids such that the first line has the indices
+    of the observations chosen by the K-means++ algorithm as the initial centroids.
+    the second line onward has the calculated final centroids.
+    """
     d = len(lst[0])
     for i in range(k - 1):
         print(idx_lst[i], end=',')

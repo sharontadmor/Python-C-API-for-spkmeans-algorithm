@@ -10,18 +10,22 @@ static double distance(matrix *vectors1, matrix *vectors2, int vecIdx1, int vecI
 static int updateCenrtoids(matrix *centroids, vector **clusters);
 /* helper functions for Jacobi */
 static double getSumSquares(matrix *a);
-static int isBreakConditionJacobi(int count, double offA, double offVecs);
+static int isBreakConditionJacobi(int count, int isDiagonal);
 static int getPivot(matrix *a, int *idx);
-static int calculateP(matrix *a, matrix *p, int i, int j);
+static void buildRotationMatrix(matrix *p, double s, double c, int idx1, int idx2);
 static double getT(matrix *a, int i, int j);
 static double getC(double t);
 static double getS(double c, double t);
-static int rotate(matrix *a, matrix *b, matrix *p, int i, int j);
+static int calculateEigenvectors(matrix *eigenvecs, matrix *p);
 static int matrixMultiplication(matrix *a, matrix *b, matrix *prod);
+static int calculateEigenvalues(matrix *eigenvals, double s, double c, int idx1, int idx2);
+static int rotate(matrix *a, matrix *b, double s, double c, int i, int j);
+static int correctMinusZero(matrix *eigenvecs, matrix *eigenvals);
 
 static void addNode(vector **clusters, int clIdx, vector *vec)
 /*
 adds a node of type Vector to linked list.
+adds to the end of the list.
 */
 {
     vector *curr;
@@ -38,6 +42,7 @@ adds a node of type Vector to linked list.
         }
         curr->next = vec;
         vec->prev = curr;
+        vec->next = NULL;
     }
 }
 
@@ -70,6 +75,7 @@ pre: node is the head of linked list, vec->prev == NULL
 */
 {
     int i;
+#if 0
     /* if cluster size is 1 */
     if (vec->prev == NULL && vec->next == NULL)
     {
@@ -82,6 +88,7 @@ pre: node is the head of linked list, vec->prev == NULL
             }
         }
     }
+#endif
     for (i = 0; i < clustersNum; i++)
     {
         if (clusters[i] == vec)
@@ -139,6 +146,7 @@ pre: len(vec1) == len(vec2).
 static int updateCenrtoids(matrix *centroids, vector **clusters)
 /*
 iterates over all the clusters and calculates their new centroids.
+return : convergences - number of centroids whose new centroid has a distance of less than epsilon from previus centroid.
 */
 {
     int i, j, size, convergences;
@@ -175,7 +183,7 @@ iterates over all the clusters and calculates their new centroids.
             size++;
             curr = curr->next;
         }
-        /* devide sum vector by the size of cluster */
+        /* divide sum vector by the size of cluster */
         if (size > 0)
         {
             for (j = 0; j < centroids->colsNum; j++)
@@ -218,15 +226,19 @@ return : 0 if run was successful, 1 otherwise.
     k = clustersNum;
     n = vectorsNum;
     partition = (vector **)malloc(sizeof(vector *) * n);
-    clusters = (vector **)malloc(sizeof(vector *) * k);
-    if (partition == NULL || clusters == NULL)
+    if (partition == NULL)
     {
-        vectorCleanup(partition, clusters, n);
         return EXIT_FAILURE;
     }
     for (i = 0; i < n; i++)
     {
         partition[i] = NULL;
+    }
+    clusters = (vector **)malloc(sizeof(vector *) * k);
+    if (clusters == NULL)
+    {
+        free(partition);
+        return EXIT_FAILURE;
     }
     for (i = 0; i < k; i++)
     {
@@ -274,12 +286,13 @@ return : 0 if run was successful, 1 otherwise.
 
 int wamC(int n, int d, matrix *vectors, matrix *w)
 /*
-n - number of vectors.
-d - dimention of each vector.
-vectors - array representing a matrix of dim n*d of all data points that were observed.
-w - array representing a matrix of dim n*n.
-this function calculates w, the weighed adjacency matrix of the graph created from data points in vectors.
-returns 0 if operation is successful.
+calculates w, the weighed adjacency matrix of the graph created from data points in vectors.
+arguments:
+(1) n - number of vectors.
+(2) d - dimention of each vector.
+(3) vectors - array representing a matrix of dim n*d of all data points that were observed.
+(4) w - array representing a matrix of dim n*n.
+return : 0 if operation is successful.
 */
 {
     int i, j, l;
@@ -328,17 +341,18 @@ returns 0 if operation is successful.
 #endif
         }
     }
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 int ddgC(int n, int d, matrix *vectors, matrix *dg)
 /*
-n - number of vectors.
-d - dimention of each vector.
-vectors - array representing a matrix of dim n*d of all data points that were observed.
-dg - array representing a matrix of dim n*n.
-this function calculates dg, the diagonal degree matrix of the graph created from data points in vectors.
-returns 0 if operation is successful.
+calculates dg, the diagonal degree matrix of the graph created from data points in vectors.
+arguments:
+(1) n - number of vectors.
+(2) d - dimention of each vector.
+(3) vectors - array representing a matrix of dim n*d of all data points that were observed.
+(4) dg - array representing a matrix of dim n*n.
+return : 0 if run was successful, 1 otherwise.
 */
 {
     int i, j, res;
@@ -370,12 +384,13 @@ returns 0 if operation is successful.
 
 int glC(int n, int d, matrix *vectors, matrix *l)
 /*
-n - number of vectors.
-d - dimention of each vector.
-vectors - array representing a matrix of dim n*d of all data points that were observed.
-l - array representing a matrix of dim n*n.
-this function calculates l, the graph laplacian matrix of the graph created from data points in vectors.
-returns 0 if operation is successful.
+calculates l, the graph laplacian matrix of the graph created from data points in vectors.
+arguments:
+(1) n - number of vectors.
+(2) d - dimention of each vector.
+(3) vectors - array representing a matrix of dim n*d of all data points that were observed.
+(4) l - array representing a matrix of dim n*n.
+return : 0 if run was successful, 1 otherwise.
 */
 {
     int i, j, res;
@@ -435,69 +450,61 @@ int jacobiC(int n, matrix *a, matrix *eigenvals, matrix *eigenvecs)
 /*
 the Jacobi eigenvalue algorithm is an iterative method
 for the calculation of eigenvalues and eigenvectors of a real symmetric matrix.
-n - size of matrix a.
-a - array representing a symmetric matrix of dim n*n,
+arguments:
+(1) n - size of matrix a.
+(2) a - array representing a symmetric matrix of dim n*n,
 for which to calculate eigenvalues and eigenvectors.
-eigenvals - array representing a matrix of dim n*n,
+(3) eigenvals - array representing a matrix of dim n*n,
 in which the diagonal values are a's eigenvalues.
-eigenvecs - array representing a matrix of dim n*n,
+(4) eigenvecs - array representing a matrix of dim n*n,
 in which the columns are a's eigenvectors.
-returns 0 if operation is successful.
+return : 0 if run was successful, 1 otherwise.
 */
 {
-    int i, j, count, idx[2], res;
-    /* int count; */
-    double offA, offVecs;
-    matrix *p, *temp, *prod;
-    idx[0] = 0;
-    idx[1] = 0;
-    offA = 0;
-    offVecs = 0;
+    int isDiagonal, res, count, pivotIndxes[2];
+    double prevOff, currOff, t, c, s;
+    matrix *p;
+    pivotIndxes[0] = 0;
+    pivotIndxes[1] = 0;
+    isDiagonal = 0;
+    prevOff = 0;
+    prevOff = getSumSquares(a);
     count = 0;
     p = mallocMatrix(n, n);
     if (p == NULL)
     {
         return EXIT_FAILURE;
     }
-    offA = getSumSquares(a);
 
-    /*
-    printf("a:\n");
-    printMatrix(n, n, a);
-    */
+#if 0
+    /* fix -0 */
+    printf("eigenvals:\n");
+    for (i = 0; i < eigenvals->rowsNum; i++)
+    {
+        for (j = 0; j < eigenvals->colsNum - 1; j++)
+        {
+            printf("%f,", getCellValue(eigenvals, i, j));
+        }
+        printf("%f\n", getCellValue(eigenvals, i, j));
+    }
+    printf("checking for -0:\n");
+    for (i = 0; i < eigenvals->rowsNum; i++)
+    {
+        if (getCellValue(eigenvals, i, i) == 0 && __signbit(getCellValue(eigenvals, i, i)))
+        {
+            printf("index %d has value of %f.\n", i, getCellValue(eigenvals, i, i));
+        }
+    }
+    printf("\n");
+#endif
+#if 0
     while (!isBreakConditionJacobi(count, offA, offVecs))
     {
         count += 1;
-
-        /*
-        printf("---> iteration: %d\n", count);
-        printf("p 1 - start of iter:\n");
-        printMatrix(n, n, p);
-        printf("eigenvalues 1 - start of iter:\n");
-        printMatrix(n, n, eigenvalues);
-        */
-        /*
-        printf("---> iteration: %d\n", count);
-        printf("p 1 - start of iter:\n");
-        printMatrix(n, n, p);
-        printf("eigenvectors 1 - start of iter:\n");
-        printMatrix(n, n, eigenvectors);
-        */
-
         res = getPivot(eigenvals, idx);
         if (res == MATRIX_IS_DIAGONAL)
         {
-            if (count == 1)
-            {
-                for (i = 0; i < n; i++)
-                {
-                    for (j = 0; j < n; j++)
-                    {
-                        setCellValue(eigenvecs, i, j, getCellValue(p, i, j));
-                    }
-                }
-            }
-            else
+            if (count > 1)
             {
                 prod = mallocMatrix(n, n);
                 if (prod == NULL)
@@ -513,10 +520,11 @@ returns 0 if operation is successful.
                     }
                 }
                 matrixMultiplication(eigenvecs, p, prod);
-                free(eigenvecs);
-                eigenvecs = prod;
+                free(eigenvecs->array);
+                eigenvecs->array = prod->array;
             }
-            return 0;
+            matrixCleanup(p);
+            return EXIT_SUCCESS;
         }
         temp = mallocMatrix(n, n);
         if (temp == NULL)
@@ -539,80 +547,100 @@ returns 0 if operation is successful.
                 }
             }
         }
-
-        /*
-        printf("p 2 - after p init:\n");
-        printMatrix(n, n, p);
-        printf("eigenvalues 2 - after p init:\n");
-        printMatrix(n, n, eigenvalues);
-        */
-
         calculateP(eigenvals, p, idx[0], idx[1]);
         rotate(eigenvals, temp, p, idx[0], idx[1]);
-        matrixCleanup(eigenvals);
-        eigenvals = temp;
+        free(eigenvals->array);
+        eigenvals->array = temp->array;
 
-        /*
-        printf("p 3 - after calculations:\n");
-        printMatrix(n, n, p);
-        printf("eigenvalues 3 - after calculations:\n");
-        printMatrix(n, n, eigenvalues);
-        */
-
-        if (count == 1)
+        prod = mallocMatrix(n, n);
+        if (prod == NULL)
         {
-            /* eigenvectors = p; */
-            for (i = 0; i < n; i++)
+            matrixCleanup(p);
+            return EXIT_FAILURE;
+        }
+        for (i = 0; i < n; i++)
+        {
+            for (j = 0; j < n; j++)
             {
-                for (j = 0; j < n; j++)
-                {
-                    setCellValue(eigenvecs, i, j, getCellValue(p, i, j));
-                }
+                setCellValue(prod, i, j, 0);
             }
         }
-        else
-        {
-            prod = mallocMatrix(n, n);
-            if (prod == NULL)
-            {
-                matrixCleanup(p);
-                return EXIT_FAILURE;
-            }
-            for (i = 0; i < n; i++)
-            {
-                for (j = 0; j < n; j++)
-                {
-                    setCellValue(prod, i, j, 0);
-                }
-            }
-            matrixMultiplication(eigenvecs, p, prod);
-            matrixCleanup(eigenvecs);
-            eigenvecs = prod;
-        }
+        matrixMultiplication(eigenvecs, p, prod);
+        free(eigenvecs->array);
+        eigenvecs->array = prod->array;
+
         offVecs = getSumSquares(eigenvals);
+    }
+    matrixCleanup(p);
+    return EXIT_SUCCESS;
+#endif
+
+    while (!isBreakConditionJacobi(count, isDiagonal))
+    {
+        count += 1;
+        res = getPivot(eigenvals, pivotIndxes);
+        t = getT(eigenvals, pivotIndxes[0], pivotIndxes[1]);
+        c = getC(t);
+        s = getS(c, t);
+        buildRotationMatrix(p, s, c, pivotIndxes[0], pivotIndxes[1]);
+        res = calculateEigenvectors(eigenvecs, p);
+        if (res == EXIT_FAILURE)
+        {
+            matrixCleanup(p);
+            return EXIT_FAILURE;
+        }
+        res = calculateEigenvalues(eigenvals, s, c, pivotIndxes[0], pivotIndxes[1]);
+        if (res == EXIT_FAILURE)
+        {
+            matrixCleanup(p);
+            return EXIT_FAILURE;
+        }
+        currOff = getSumSquares(eigenvals);
+        if ((prevOff - currOff) <= EPS) /* the difference should always be a positive double */
+        {
+            isDiagonal = 1;
+        }
+        prevOff = currOff;
+
         /*
-        printf("p 4 - end of iter:\n");
-        printMatrix(n, n, p);
-        printf("eigenvectors 4 - end of iter:\n");
-        printMatrix(n, n, eigenvectors);
+        printf("iteration: %d\n", count);
+        printf("pivot: %d, %d\n", pivotIndxes[0], pivotIndxes[1]);
+        printf("t: %f\n", t);
+        printf("c: %f\n", c);
+        printf("s: %f\n", s);
+        printf("p:\n");
+        printMatrix(p);
+        printf("v:\n");
+        printMatrix(eigenvecs);
+        printf("eigenvals:\n");
+        printMatrix(eigenvals);
+
+        printf("a:\n");
+        printMatrix(a);
         */
     }
 
-    /*
-    printf("original a:\n");
-    printMatrix(n, n, a);
-    printf("final eigenvectors:\n");
-    printMatrix(n, n, eigenvectors);
-    printf("final eigenvalues:\n");
-    printMatrix(n, n, eigenvalues);
-    */
+#if 0
+    /* add the following loop to test case of -0 */
+    for (i = 0; i < eigenvals->rowsNum; i++)
+    {
+        for (j = 0; j < eigenvals->colsNum - 1; j++)
+        {
+            setCellValue(eigenvals, i, j, getCellValue(a, i, j));
+        }
+    }
+    printf("eigenvals:\n");
+    printMatrix(eigenvals);
+    printf("\n");
+#endif
+
+    correctMinusZero(eigenvecs, eigenvals);
     matrixCleanup(p);
     return EXIT_SUCCESS;
 }
 
 static double getSumSquares(matrix *a)
 /*
-n - size of matrix a.
 a - array representing symmetric matrix of dim n*n.
 returns the sum of squares of all off-diagonal elements of matrix a.
 */
@@ -631,17 +659,9 @@ returns the sum of squares of all off-diagonal elements of matrix a.
     return 2.0 * sum;
 }
 
-static int isBreakConditionJacobi(int count, double offA, double offVecs)
+static int isBreakConditionJacobi(int count, int isDiagonal)
 {
-    int convergence;
-    convergence = offA - offVecs <= EPS;
-    /*
-    printf("offA: %.100f\n", offA);
-    printf("offVecs: %.100f\n", offVecs);
-    printf("diff: %.100f\n", offA - offVecs);
-    printf("EPS: %.100f\n", EPS);
-    */
-    if (count == MAX_ROTATIONS || convergence)
+    if (count == MAX_ROTATIONS || isDiagonal)
     {
         return 1;
     }
@@ -650,7 +670,6 @@ static int isBreakConditionJacobi(int count, double offA, double offVecs)
 
 static int getPivot(matrix *a, int *idx)
 /*
-n - size of matrix a.
 a - array representing symmetric matrix of dim n*n.
 idx - array of size 2.
 this function finds pivot a_ij,
@@ -680,13 +699,10 @@ pivot is the off-diagonal element of matrix a with the largest absolute value.
             }
         }
     }
-    if (pivot == 0) /* all off-diagonal elements are 0 */
-    {
-        return MATRIX_IS_DIAGONAL;
-    }
-    return 0;
+    return EXIT_SUCCESS;
 }
 
+#if 0
 static int calculateP(matrix *a, matrix *p, int i, int j)
 /*
 calculates rotation matrix p.
@@ -708,6 +724,35 @@ calculates rotation matrix p.
     */
 
     return 0;
+}
+#endif
+
+static void buildRotationMatrix(matrix *p, double s, double c, int idx1, int idx2)
+/*
+calculates rotation matrix p.
+*/
+{
+    int i, j;
+    /* initiate p to be a unit matrix: */
+    for (i = 0; i < p->rowsNum; i++)
+    {
+        for (j = 0; j < p->colsNum; j++)
+        {
+            if (i == j)
+            {
+                setCellValue(p, i, j, 1);
+            }
+            else
+            {
+                setCellValue(p, i, j, 0);
+            }
+        }
+    }
+    /* factoring in the values of s, c: */
+    setCellValue(p, idx1, idx1, c);
+    setCellValue(p, idx2, idx2, c);
+    setCellValue(p, idx1, idx2, s);
+    setCellValue(p, idx2, idx1, (-1) * s);
 }
 
 static double getT(matrix *a, int i, int j)
@@ -757,19 +802,99 @@ calculates value s out of matrix a.
     return s;
 }
 
-static int rotate(matrix *a, matrix *b, matrix *p, int i, int j)
+static int calculateEigenvectors(matrix *eigenvecs, matrix *p)
+/*
+updates matrix eigenvecs by performing matrix multiplication with p.
+*/
+{
+    int i, j, n;
+    matrix *prod;
+    n = eigenvecs->rowsNum;
+    prod = mallocMatrix(n, n);
+    if (prod == NULL)
+    {
+        return EXIT_FAILURE;
+    }
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+        {
+            setCellValue(prod, i, j, 0);
+        }
+    }
+    matrixMultiplication(eigenvecs, p, prod);
+    free(eigenvecs->array);
+    eigenvecs->array = prod->array;
+    free(prod);
+    return EXIT_SUCCESS;
+}
+
+static int matrixMultiplication(matrix *a, matrix *b, matrix *prod)
+/*
+calculates matrix multiplication between a and b.
+pre : a and b are square matrices of size n.
+stores product into matrix prod of size n.
+*/
+{
+    int i, j, k, n;
+    double res;
+    n = a->rowsNum;
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+        {
+            setCellValue(prod, i, j, 0);
+            for (k = 0; k < n; k++)
+            {
+                res = getCellValue(prod, i, j) + getCellValue(a, i, k) * getCellValue(b, k, j);
+                setCellValue(prod, i, j, res);
+            }
+        }
+    }
+    return EXIT_SUCCESS;
+}
+
+static int calculateEigenvalues(matrix *eigenvals, double s, double c, int idx1, int idx2)
+/*
+updates matrix eigenvals.
+*/
+{
+    int i, j, n;
+    matrix *temp;
+    n = eigenvals->rowsNum;
+    /* initiate a copy of eigenvals: */
+    temp = mallocMatrix(n, n);
+    if (temp == NULL)
+    {
+        return EXIT_FAILURE;
+    }
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < n; j++)
+        {
+            setCellValue(temp, i, j, getCellValue(eigenvals, i, j));
+        }
+    }
+    /* update eigenvals: */
+    rotate(eigenvals, temp, s, c, idx1, idx2);
+    free(eigenvals->array);
+    eigenvals->array = temp->array;
+    free(temp);
+    return EXIT_SUCCESS;
+}
+
+static int rotate(matrix *a, matrix *b, double s, double c, int i, int j)
 /*
 rotates matrix b to make b_ij = 0.
 */
 {
     int r, n;
-    double c, s, val;
+    double val;
     n = a->rowsNum;
-    c = getCellValue(p, i, i);
-    s = getCellValue(p, i, j);
     val = (c * c * getCellValue(a, i, i)) + (s * s * getCellValue(a, j, j)) - (2 * s * c * getCellValue(a, i, j));
     setCellValue(b, i, i, val);
     val = (s * s * getCellValue(a, i, i)) + (c * c * getCellValue(a, j, j)) + (2 * s * c * getCellValue(a, i, j));
+    setCellValue(b, j, j, val);
     setCellValue(b, i, j, 0); /* b[i][j] = (c * c - s * s) * a[i][j] + (s * c)(a[i][i] - a[j][j]) = 0 */
     setCellValue(b, j, i, 0);
     for (r = 0; r < n; r++)
@@ -803,29 +928,41 @@ rotates matrix b to make b_ij = 0.
     }
     */
 
-    return 0;
+    return EXIT_SUCCESS;
 }
 
-static int matrixMultiplication(matrix *a, matrix *b, matrix *prod)
+static int correctMinusZero(matrix *eigenvecs, matrix *eigenvals)
 /*
-calculates matrix multiplication between a and b, square matrices of size n.
-stores product into matrix prod of size n.
+this function loops over the diagonal of matrix eigenvals.
+in the edge case that a minus zero (double) eigenvalue was calculated due to floating point precision,
+this function will correct its corresponding eigenvector by multiplying the corresponding column of matrix eigenvecs by -1.
 */
 {
-    int i, j, k, n;
-    double res;
-    n = a->rowsNum;
-    for (i = 0; i < n; i++)
+    int i, j;
+
+    #if 0
+    printf("eigenvecs before:\n");
+    printMatrix(eigenvecs);
+    printf("\n");
+    #endif
+
+    for (i = 0; i < eigenvals->rowsNum; i++)
     {
-        for (j = 0; j < n; j++)
+        if (getCellValue(eigenvals, i, i) == 0 && __signbit(getCellValue(eigenvals, i, i)))
         {
-            setCellValue(prod, i, j, 0);
-            for (k = 0; k < n; k++)
+            /* printf("index %d has value of %f.\n", i, getCellValue(eigenvals, i, i)); */
+            for (j = 0; j < eigenvals->rowsNum; j++)
             {
-                res = getCellValue(prod, i, j) + getCellValue(a, i, k) * getCellValue(b, k, j);
-                setCellValue(prod, i, j, res);
+                setCellValue(eigenvecs, j, i, (-1) * getCellValue(eigenvecs, j, i));
             }
         }
     }
-    return 0;
+
+    #if 0
+    printf("eigenvecs after:\n");
+    printMatrix(eigenvecs);
+    printf("\n");
+    #endif
+
+    return EXIT_SUCCESS;
 }

@@ -1,9 +1,17 @@
 #include "spkmeans.h"
 
 /*
+compile using:
 gcc -ansi -Wall -Wextra -Werror -pedantic-errors spkmeans_main.c -o spkmeans_main -lm
 run using:
-make && ./spkmeans wam tests/test1.txt
+make && ./spkmeans wam tests/test_batch/test1.txt
+make && ./spkmeans jacobi tests/test_batch/test1_j.txt
+
+test with asan:
+make spkmeans_asan && ./spkmeans_asan jacobi tests/test_batch/test1_j.txt
+
+test for case -0:
+make && ./spkmeans jacobi tests/test_batch/test0_j.txt
 */
 
 static matrix *parseData(char *fileName);
@@ -16,6 +24,8 @@ static int jacobi(matrix *data);
 static matrix *parseData(char *fileName)
 /*
 reads data from file with directory fileName.
+pre : input is valid - valid range of double variables, same amount of columns in each row,
+all given data points are different.
 return : matrix of given data if run was successful, NULL otherwise.
 */
 {
@@ -48,6 +58,7 @@ return : matrix of given data if run was successful, NULL otherwise.
     data = mallocMatrix(rowsNum, colsNum);
     if (data == NULL)
     {
+        fclose(ifp);
         return NULL;
     }
     for (i = 0; i < rowsNum; i++)
@@ -57,6 +68,8 @@ return : matrix of given data if run was successful, NULL otherwise.
             error = fscanf(ifp, "%lf", &coord);
             if (error == EOF)
             {
+                matrixCleanup(data);
+                fclose(ifp);
                 return NULL;
             }
             setCellValue(data, i, j, coord);
@@ -94,6 +107,10 @@ static int operation(char *goal, matrix *data)
 static int wam(matrix *data)
 /*
 calculates weighed adjacency matrix.
+the weighed adjacency matrix represents an undirected graph,
+which represents n datapoints given in matrix data,
+and each datapoint is viewed as a vertex.
+return : 0 if run was successful, 1 otherwise.
 */
 {
     int i, j, res;
@@ -123,7 +140,10 @@ calculates weighed adjacency matrix.
 
 static int ddg(matrix *data)
 /*
-calculates diagonal degree matrix.
+calculates diagonal degree matrix of an undirected graph,
+which represents n datapoints given in matrix data,
+and each datapoint is viewed as a vertex.
+return : 0 if run was successful, 1 otherwise.
 */
 {
     int i, j, res;
@@ -160,7 +180,10 @@ calculates diagonal degree matrix.
 
 static int gl(matrix *data)
 /*
-calculates the graph laplacian matrix.
+calculates the graph laplacian matrix of an undirected graph,
+which represents n datapoints given in matrix data,
+and each datapoint is viewed as a vertex.
+return : 0 if run was successful, 1 otherwise.
 */
 {
     int i, j, res;
@@ -190,7 +213,8 @@ calculates the graph laplacian matrix.
 
 static int jacobi(matrix *data)
 /*
-calculates eigenvalues and eigenvectors of a symmetric matrix.
+calculates eigenvalues and eigenvectors of symmetric matrix data.
+return : 0 if run was successful, 1 otherwise.
 */
 {
     int i, j, res;
@@ -207,7 +231,7 @@ calculates eigenvalues and eigenvectors of a symmetric matrix.
     {
         for (j = 0; j < data->rowsNum; j++)
         {
-            setCellValue(eigenvals, i, j, getCellValue(data, i, j)); /**/
+            setCellValue(eigenvals, i, j, getCellValue(data, i, j));
             if (i == j)
             {
                 setCellValue(eigenvecs, i, j, 1);
@@ -276,19 +300,20 @@ int main(int argc, char *argv[])
     matrix *data;
     if (argc != ARGS_NUM)
     {
-        printf(GENERAL_ERROR_MESSAGE);
+        fprintf(stderr, GENERAL_ERROR_MESSAGE);
         return EXIT_FAILURE;
     }
     data = parseData(argv[FILENAME_IDX]);
     if (data == NULL)
     {
-        printf(GENERAL_ERROR_MESSAGE);
+        fprintf(stderr, GENERAL_ERROR_MESSAGE);
         return EXIT_FAILURE;
     }
     res = operation(argv[GOAL_IDX], data);
     if (res == EXIT_FAILURE)
     {
-        printf(GENERAL_ERROR_MESSAGE);
+        matrixCleanup(data);
+        fprintf(stderr, GENERAL_ERROR_MESSAGE);
         return EXIT_FAILURE;
     }
     matrixCleanup(data);

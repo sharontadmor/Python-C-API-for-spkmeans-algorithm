@@ -8,7 +8,6 @@
 #define KMEANS_EPS 0
 #define EPS 1.0 * pow(10, -5)
 #define MAX_ROTATIONS 100
-#define MATRIX_IS_DIAGONAL -1
 #define ARGS_NUM 3
 #define GOAL_IDX 1
 #define FILENAME_IDX 2
@@ -29,7 +28,7 @@ vector node in a linked list.
 
 typedef struct matrix
 /*
-one dimentional array that will be used as a two dimentional matrix.
+one dimentional array that will be used as a matrix.
 */
 {
     int rowsNum; /* number of rows, or number of vectors. */

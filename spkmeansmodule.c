@@ -7,7 +7,7 @@ static PyObject *wam(PyObject *self, PyObject *args);
 static PyObject *ddg(PyObject *self, PyObject *args);
 static PyObject *gl(PyObject *self, PyObject *args);
 static PyObject *jacobi(PyObject *self, PyObject *args);
-static PyObject *getList(matrix *mat);
+static PyObject *buildMatrix(matrix *mat);
 
 static PyObject *spk(PyObject *self, PyObject *args)
 {
@@ -20,8 +20,12 @@ static PyObject *spk(PyObject *self, PyObject *args)
         return Py_BuildValue("i", EXIT_FAILURE);
     }
     n = PyObject_Length(pyVectors);
+    if (n <= 0)
+    {
+        return Py_BuildValue("i", EXIT_FAILURE);
+    }
     d = PyObject_Length(PyList_GetItem(pyVectors, 0));
-    if (n < 0 || d < 0)
+    if (d <= 0)
     {
         return Py_BuildValue("i", EXIT_FAILURE);
     }
@@ -59,7 +63,7 @@ static PyObject *spk(PyObject *self, PyObject *args)
         matrixCleanup(centroids);
         return Py_BuildValue("i", EXIT_FAILURE);
     }
-    finalCentroids = getList(centroids);
+    finalCentroids = buildMatrix(centroids);
     matrixCleanup(vectors);
     matrixCleanup(centroids);
     return Py_BuildValue("O", finalCentroids);
@@ -77,8 +81,12 @@ static PyObject *wam(PyObject *self, PyObject *args)
         return Py_BuildValue("i", EXIT_FAILURE);
     }
     n = PyObject_Length(pyVectors);
+    if (n <= 0)
+    {
+        return Py_BuildValue("i", EXIT_FAILURE);
+    }
     d = PyObject_Length(PyList_GetItem(pyVectors, 0));
-    if (n < 0 || d < 0)
+    if (d <= 0)
     {
         return Py_BuildValue("i", EXIT_FAILURE);
     }
@@ -110,7 +118,7 @@ static PyObject *wam(PyObject *self, PyObject *args)
         matrixCleanup(w);
         return Py_BuildValue("i", EXIT_FAILURE);
     }
-    pyW = getList(w);
+    pyW = buildMatrix(w);
     matrixCleanup(vectors);
     matrixCleanup(w);
     return Py_BuildValue("O", pyW);
@@ -128,8 +136,12 @@ static PyObject *ddg(PyObject *self, PyObject *args)
         return Py_BuildValue("i", EXIT_FAILURE);
     }
     n = PyObject_Length(pyVectors);
+    if (n <= 0)
+    {
+        return Py_BuildValue("i", EXIT_FAILURE);
+    }
     d = PyObject_Length(PyList_GetItem(pyVectors, 0));
-    if (n < 0 || d < 0)
+    if (d <= 0)
     {
         return Py_BuildValue("i", EXIT_FAILURE);
     }
@@ -168,7 +180,7 @@ static PyObject *ddg(PyObject *self, PyObject *args)
         matrixCleanup(dg);
         return Py_BuildValue("i", EXIT_FAILURE);
     }
-    pyDg = getList(dg);
+    pyDg = buildMatrix(dg);
     matrixCleanup(vectors);
     matrixCleanup(dg);
     return Py_BuildValue("O", pyDg);
@@ -186,8 +198,12 @@ static PyObject *gl(PyObject *self, PyObject *args)
         return Py_BuildValue("i", EXIT_FAILURE);
     }
     n = PyObject_Length(pyVectors);
+    if (n <= 0)
+    {
+        return Py_BuildValue("i", EXIT_FAILURE);
+    }
     d = PyObject_Length(PyList_GetItem(pyVectors, 0));
-    if (n < 0 || d < 0)
+    if (d <= 0)
     {
         return Py_BuildValue("i", EXIT_FAILURE);
     }
@@ -219,7 +235,7 @@ static PyObject *gl(PyObject *self, PyObject *args)
         matrixCleanup(l);
         return Py_BuildValue("i", EXIT_FAILURE);
     }
-    pyL = getList(l);
+    pyL = buildMatrix(l);
     matrixCleanup(vectors);
     matrixCleanup(l);
     return Py_BuildValue("O", pyL);
@@ -237,7 +253,7 @@ static PyObject *jacobi(PyObject *self, PyObject *args)
         return Py_BuildValue("ii", EXIT_FAILURE, EXIT_FAILURE);
     }
     n = PyObject_Length(pyVectors);
-    if (n < 0)
+    if (n <= 0)
     {
         return Py_BuildValue("ii", EXIT_FAILURE, EXIT_FAILURE);
     }
@@ -287,15 +303,15 @@ static PyObject *jacobi(PyObject *self, PyObject *args)
         matrixCleanup(eigenvecs);
         return Py_BuildValue("ii", EXIT_FAILURE, EXIT_FAILURE);
     }
-    pyVals = getList(eigenvals);
-    pyVecs = getList(eigenvecs);
+    pyVals = buildMatrix(eigenvals);
+    pyVecs = buildMatrix(eigenvecs);
     matrixCleanup(mat);
     matrixCleanup(eigenvals);
     matrixCleanup(eigenvecs);
     return Py_BuildValue("OO", pyVals, pyVecs);
 }
 
-static PyObject *getList(matrix *mat)
+static PyObject *buildMatrix(matrix *mat)
 {
     int i, j;
     PyObject *pyLst, *item, *num;
@@ -331,53 +347,69 @@ static PyMethodDef kmeansMethods[] = {
      (PyCFunction)spk,
      METH_VARARGS,
      PyDoc_STR(
-         "description. \
-         arguments description: \
+         "Implementation for K-means clustering algorithm. \
+         arguments: \
          (1) vectors - an array of all data points that were observed. \
-         (2) ... \
-         return : .")},
+         (2) centroids - an array of data points chosen as initial centroids. \
+         (3) clustersNum - number of required clusters. \
+         (4) vectorsNum - number of given vectors. \
+         return : 0 if run was successful, 1 otherwise.")},
     {"wam",
      (PyCFunction)wam,
      METH_VARARGS,
      PyDoc_STR(
-         "description. \
-         arguments description: \
-         (1) vectors - an array of all data points that were observed. \
-         (2) ... \
-         return : .")},
+         "calculates weighed adjacency matrix. \
+         arguments: \
+         (1) n - number of vectors. \
+         (2) d - dimention of each vector. \
+         (3) vectors - array representing a matrix of dim n*d of \
+         all data points that were observed. \
+         (4) w - array representing a matrix of dim n*n. \
+         return : 0 if operation is successful.")},
     {"ddg",
      (PyCFunction)ddg,
      METH_VARARGS,
      PyDoc_STR(
-         "description. \
-         arguments description: \
-         (1) vectors - an array of all data points that were observed. \
-         (2) ... \
-         return : .")},
+         "calculates diagonal degree matrix. \
+         arguments: \
+         (1) n - number of vectors. \
+         (2) d - dimention of each vector. \
+         (3) vectors - array representing a matrix of dim n*d of \
+         all data points that were observed. \
+         (4) dg - array representing a matrix of dim n*n. \
+         return : 0 if run was successful, 1 otherwise.")},
     {"gl",
      (PyCFunction)gl,
      METH_VARARGS,
      PyDoc_STR(
-         "description. \
-         arguments description: \
-         (1) vectors - an array of all data points that were observed. \
-         (2) ... \
-         return : .")},
+         "calculates graph laplacian matrix. \
+         arguments: \
+         (1) n - number of vectors. \
+         (2) d - dimention of each vector. \
+         (3) vectors - array representing a matrix of dim n*d of \
+         all data points that were observed. \
+         (4) l - array representing a matrix of dim n*n. \
+         return : 0 if run was successful, 1 otherwise.")},
     {"jacobi",
      (PyCFunction)jacobi,
      METH_VARARGS,
      PyDoc_STR(
-         "description. \
-         arguments description: \
-         (1) vectors - an array of all data points that were observed. \
-         (2) ... \
-         return : .")},
-    {"get_list",
-     (PyCFunction)getList,
+         "Implementation for the Jacobi eigenvalue algorithm. \
+         arguments: \
+         (1) n - size of matrix a. \
+         (2) a - array representing a symmetric matrix of dim n*n, \
+         for which to calculate eigenvalues and eigenvectors. \
+         (3) eigenvals - array representing a matrix of dim n*n, \
+         in which the diagonal values are a's eigenvalues. \
+         (4) eigenvecs - array representing a matrix of dim n*n, \
+         in which the columns are a's eigenvectors. \
+         return : 0 if run was successful, 1 otherwise.")},
+    {"build_matrix",
+     (PyCFunction)buildMatrix,
      METH_VARARGS,
      PyDoc_STR(
          "builds a python list of lists from C array, returns this python list. \
-        argument arr - C array.")},
+         argument mat : C array.")},
     {NULL, NULL, 0, NULL}};
 
 static struct PyModuleDef spkmeansmodule = {

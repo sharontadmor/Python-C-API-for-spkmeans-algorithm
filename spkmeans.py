@@ -21,6 +21,7 @@ np.random.seed(0)
 MIN_ARGS = 2
 MAX_ARGS = 3
 KEY = 0
+DEFAULT_K = -1
 ERROR_OUT_OF_MEMORY = 1
 ERROR = {
     'GENERAL_ERROR_MESSAGE': 'An Error Has Occurred'
@@ -35,9 +36,10 @@ def parse_data(file_name):
     return data
 
 
-def eigengap_heuristic():
+def eigengap_heuristic(eigenvalues):
     """
     determines the number of clusters, k.
+    eigenvalues - sorted array of doubles.
     """
     return 2
 
@@ -47,14 +49,51 @@ def first_k_eigenvectors(data, k):
     computes the first k eigenvectors of the laplacian matrix of the graph created from given data points.
     the first k eigenvectors are eigenvectors corresponding to the k smallest eigenvalues.
     pre: num of eigenvectors > k
+    return: u - matrix which columns are the first k eigenvectors; k - number of required clusters.
     """
-    # get eigenvalues and eigenvectors of the graph laplacian matrix:
-    eigenvalues, eigenvectors = jacobi(np.array(gl(data)))
-    # sort eigenvalues from smallest to largest, while updating order of corresponding eigenvectors:
+    # get eigenvalues and eigenvectors of the graph laplacian matrix.
+    # the eigenvectors are the columns of matrix eigenvectors,
+    # the eigenvalues are on the diagonal of matrix eigenvalues.
+    data = [data[i].tolist() for i in range(len(data))]
+    # eigenvalues, eigenvectors = np.array(km.jacobi(km.gl(data)))
+    eigenvalues = np.array([[4, 0, 0, 0], [0, 2, 0, 0], [0, 0, 1, 0], [0, 0, 0, 3]])
+    eigenvectors = np.array([[4, 2, 1, 'a'], [4, 2, 1, 'b'], [4, 2, 1, 'c'], [4, 2, 1, 'd']])
+    print("1:")
+    print(eigenvalues)
+    print()
+    print(eigenvectors)
 
+    eigenvalues = np.diag(eigenvalues)
+    eigenvectors = eigenvectors.T
+
+    print("2:")
+    print(eigenvalues)
+    print()
+    print(eigenvectors)
+
+    # sort eigenvalues in ascending order, while rearranging corresponding eigenvectors,
+    idx = np.argsort(eigenvalues)  # get the sorted indices
+
+    print("idx:")
+    print(idx)
+
+    eigenvalues = eigenvalues[idx]
+    eigenvectors = eigenvectors[idx]
+
+    print("3:")
+    print(eigenvalues)
+    print()
+    print(eigenvectors)
+    # get k:
+    if k == DEFAULT_K:
+        k = eigengap_heuristic(eigenvalues)
     # create a matrix which columns are the first k eigenvectors:
-    u = np.array(eigenvectors)
-    return u
+    u = np.array(eigenvectors[:k]).T
+
+    print("u:")
+    print(u)
+
+    return u, k
 
 
 def init_centroids(vectors, k):
@@ -113,19 +152,18 @@ def spk(data, k):
     """
     The Unnormalized Spectral K-means clustering algorithm.
     """
-    u = first_k_eigenvectors(data, k)
-    initial_idx, initial_centroids = init_centroids(u, k)
+    u, k = first_k_eigenvectors(data, k)
+    # initial_idx, initial_centroids = init_centroids(u, k)
 
-    u = [u[i].tolist() for i in range(len(u))]
-    initial_centroids = [initial_centroids[i].tolist()
-                         for i in range(len(initial_centroids))]
+    # u = [u[i].tolist() for i in range(len(u))]
+    # initial_centroids = [initial_centroids[i].tolist()
+    #                      for i in range(len(initial_centroids))]
     
-    final_centroids = km.spk(u, initial_centroids, k)
+    # final_centroids = km.spk(u, initial_centroids, k)
     # if final_centroids == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
     #     return
-    print(initial_idx, final_centroids)
-    return final_centroids
+    # return final_centroids
 
 
 def wam(data):
@@ -239,9 +277,9 @@ def main():
         k = int(k)
     else:
         goal, file_name = args
-        k = eigengap_heuristic()
+        k = DEFAULT_K
     data = parse_data(file_name)
-    res = operation(goal, data, k)
+    return operation(goal, data, k)
 
 
 if __name__ == "__main__":

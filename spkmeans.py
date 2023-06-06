@@ -1,6 +1,7 @@
 import sys
 import os
 import numpy as np
+import math
 # import pandas as pd
 import mykmeanssp as km
 # import mykmeanssp_python as km
@@ -11,7 +12,7 @@ build using:
 python3 setup.py build_ext --inplace
 
 run using:
-python3 spkmeans.py 3 spk tests/input_1.txt
+python3 setup.py build_ext --inplace && python3 spkmeans.py spk tests/spk_1.txt
 python3 spkmeans.py 3 wam tests/input_smallest.txt
 python3 spkmeans.py 3 jacobi tests/jacobi_0.txt
 """
@@ -38,10 +39,15 @@ def parse_data(file_name):
 
 def eigengap_heuristic(eigenvalues):
     """
-    determines the number of clusters, k.
-    eigenvalues - sorted array of doubles.
+    eigenvalues - sorted array of doubles in ascending oeder.
+    return: k, the number of clusters.
     """
-    return 2
+    n = len(eigenvalues)
+    vals1 = np.array(eigenvalues[0 : n - 1])
+    vals2 = np.array(eigenvalues[1 : n])
+    eigengap = vals1 - vals2
+    k = np.argmax(eigengap[:math.floor(n / 2)])
+    return k + 1
 
 
 def first_k_eigenvectors(data, k):
@@ -55,43 +61,48 @@ def first_k_eigenvectors(data, k):
     # the eigenvectors are the columns of matrix eigenvectors,
     # the eigenvalues are on the diagonal of matrix eigenvalues.
     data = [data[i].tolist() for i in range(len(data))]
-    # eigenvalues, eigenvectors = np.array(km.jacobi(km.gl(data)))
-    eigenvalues = np.array([[4, 0, 0, 0], [0, 2, 0, 0], [0, 0, 1, 0], [0, 0, 0, 3]])
-    eigenvectors = np.array([[4, 2, 1, 'a'], [4, 2, 1, 'b'], [4, 2, 1, 'c'], [4, 2, 1, 'd']])
-    print("1:")
-    print(eigenvalues)
-    print()
-    print(eigenvectors)
+
+    # print("gl:\n", km.gl(data))
+    
+    eigenvalues, eigenvectors = np.array(km.jacobi(km.gl(data)))
+    # eigenvalues = np.array([[4, 0, 0, 0], [0, 2, 0, 0], [0, 0, 1, 0], [0, 0, 0, 3]])
+    # eigenvectors = np.array([[4, 2, 1, 'a'], [4, 2, 1, 'b'], [4, 2, 1, 'c'], [4, 2, 1, 'd']])
+    # print("1:")
+    # print(eigenvalues)
+    # print()
+    # print("eigenvectors:\n", eigenvectors)
+    
 
     eigenvalues = np.diag(eigenvalues)
     eigenvectors = eigenvectors.T
 
-    print("2:")
-    print(eigenvalues)
-    print()
-    print(eigenvectors)
+    # print("2:")
+    # print(eigenvalues)
+    # print()
+    # print(eigenvectors)
 
     # sort eigenvalues in ascending order, while rearranging corresponding eigenvectors,
     idx = np.argsort(eigenvalues)  # get the sorted indices
 
-    print("idx:")
-    print(idx)
+    # print("idx:")
+    # print(idx)
 
     eigenvalues = eigenvalues[idx]
     eigenvectors = eigenvectors[idx]
 
-    print("3:")
-    print(eigenvalues)
-    print()
-    print(eigenvectors)
+    # print("3:")
+    # print(eigenvalues)
+    # print()
+    # print(eigenvectors)
+
     # get k:
     if k == DEFAULT_K:
         k = eigengap_heuristic(eigenvalues)
     # create a matrix which columns are the first k eigenvectors:
     u = np.array(eigenvectors[:k]).T
 
-    print("u:")
-    print(u)
+    # print("u:")
+    # print(u)
 
     return u, k
 
@@ -153,17 +164,17 @@ def spk(data, k):
     The Unnormalized Spectral K-means clustering algorithm.
     """
     u, k = first_k_eigenvectors(data, k)
-    # initial_idx, initial_centroids = init_centroids(u, k)
-
-    # u = [u[i].tolist() for i in range(len(u))]
-    # initial_centroids = [initial_centroids[i].tolist()
-    #                      for i in range(len(initial_centroids))]
+    initial_idx, initial_centroids = init_centroids(u, k)
+    u = [u[i].tolist() for i in range(len(u))]
+    initial_centroids = [initial_centroids[i].tolist()
+                         for i in range(len(initial_centroids))]
     
-    # final_centroids = km.spk(u, initial_centroids, k)
-    # if final_centroids == ERROR_OUT_OF_MEMORY:
-    #     print(ERROR['GENERAL_ERROR_MESSAGE'])
-    #     return
-    # return final_centroids
+    final_centroids = km.spk(u, initial_centroids, k)
+    if final_centroids == ERROR_OUT_OF_MEMORY:
+        print(ERROR['GENERAL_ERROR_MESSAGE'])
+        return
+    print_centroids(final_centroids, initial_idx, k)
+    return final_centroids
 
 
 def wam(data):
@@ -176,7 +187,7 @@ def wam(data):
     # if w == ERROR_OUT_OF_MEMORY:
     #     print(ERROR['GENERAL_ERROR_MESSAGE'])
     #     return
-    # print_matrix(w)
+    print_matrix(w)
     return w
 
 
@@ -271,6 +282,7 @@ def operation(goal, data, k):
 
 
 def main():
+    w_12 = (10.976270078546495-15.834500761653292)**2+(14.30378732744839-10.577898395058089)**2+(12.055267521432878-11.360891221878646)**2+(10.897663659937937-18.51193276585322)**2+(8.473095986778095-1.4207211639577388)**2+(12.917882261333123-1.7425859940308142)**2+(8.75174422525385-0.4043679488065144)**2+(17.835460015641594-16.65239691095876)**2+(19.273255210020587-15.56313501899701)**2+(7.6688303765155545-17.400242964936382)**2
     args = sys.argv[1:]
     if len(args) == MAX_ARGS:
         k, goal, file_name = args

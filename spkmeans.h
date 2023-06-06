@@ -10,13 +10,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
-/*
+
 int k;
-int iter;
-double eps;
 int n;
 int d;
-*/
 
 typedef struct vector
 {
@@ -25,6 +22,7 @@ typedef struct vector
     struct vector *prev;
 } Vector;
 
+void printMatrix(int size, int dim, double (*a)[dim]);
 int kmeansC(int n, int d, int k, double (*vectors)[d], double (*centroids)[d]);
 int wamC(int n, int d, double (*vectors)[d], double (*w)[n]);
 int ddgC(int n, int d, double (*vectors)[d], double (*dg)[n]);

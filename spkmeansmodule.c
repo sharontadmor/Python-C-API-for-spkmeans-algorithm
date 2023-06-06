@@ -56,6 +56,7 @@ static PyObject *spk(PyObject *self, PyObject *args)
         return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     finalCentroids = getList(centroids[0], k, d);
+    /* TODO : cleanup */
     return Py_BuildValue("O", finalCentroids);
 }
 
@@ -102,6 +103,7 @@ static PyObject *wam(PyObject *self, PyObject *args)
         return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     pyW = getList(w[0], n, n);
+    /* cleanup */
     return Py_BuildValue("O", pyW);
 }
 
@@ -155,6 +157,7 @@ static PyObject *ddg(PyObject *self, PyObject *args)
         return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     pyDg = getList(dg[0], n, n);
+    /* cleanup */
     return Py_BuildValue("O", pyDg);
 }
 
@@ -201,6 +204,7 @@ static PyObject *gl(PyObject *self, PyObject *args)
         return Py_BuildValue("i", ERROR_OUT_OF_MEMORY);
     }
     pyL = getList(l[0], n, n);
+    /* cleanup */
     return Py_BuildValue("O", pyL);
 }
 
@@ -246,6 +250,7 @@ static PyObject *jacobi(PyObject *self, PyObject *args)
     }
     pyVals = getList(eigenvalues[0], n, n);
     pyVecs = getList(eigenvectors[0], n, n);
+    /* cleanup */
     return Py_BuildValue("OO", pyVals, pyVecs);
 }
 
